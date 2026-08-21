@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
-const isPg = Boolean(dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')));
+const isPg = Boolean(dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase')));
 
 let pool = null;
 let sqliteDb = null;
