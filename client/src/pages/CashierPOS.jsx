@@ -27,7 +27,9 @@ import {
   Coins,
   Send,
   X,
-  FileText
+  FileText,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -88,6 +90,7 @@ export default function CashierPOS() {
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [historySummary, setHistorySummary] = useState({ totalAmount: 0, totalCash: 0, totalNonCash: 0, totalCount: 0 });
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [printRekapModal, setPrintRekapModal] = useState(false);
 
   useEffect(() => {
     fetchUnits();
@@ -116,6 +119,67 @@ export default function CashierPOS() {
       setCashReceived('');
     }
   }, [selectedInvoices]);
+
+  // Export History to CSV / Excel
+  const handleExportCSV = () => {
+    if (!paymentHistory || paymentHistory.length === 0) {
+      alert('Tidak ada data riwayat transaksi untuk diexport pada filter saat ini.');
+      return;
+    }
+
+    const headers = [
+      'No',
+      'No. Kuitansi / Transaksi',
+      'Tanggal Transaksi',
+      'Waktu',
+      'NIS Siswa',
+      'Nama Siswa',
+      'Kelas',
+      'Jenjang / Unit',
+      'Pos Pembayaran',
+      'Jumlah Pembayaran (Rp)',
+      'Metode Pembayaran',
+      'Status',
+      'Kasir / Petugas',
+      'Catatan'
+    ];
+
+    const rows = paymentHistory.map((p, idx) => {
+      const d = p.payment_date ? new Date(p.payment_date) : new Date();
+      const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const amount = Number(p.amount) || 0;
+
+      return [
+        idx + 1,
+        `"${(p.receipt_number || p.transaction_number || '').replace(/"/g, '""')}"`,
+        `"${dateStr}"`,
+        `"${timeStr}"`,
+        `"${(p.nis || '-').replace(/"/g, '""')}"`,
+        `"${(p.student_name || 'Siswa').replace(/"/g, '""')}"`,
+        `"${(p.class_name || '-').replace(/"/g, '""')}"`,
+        `"${(p.unit_name || '-').replace(/"/g, '""')}"`,
+        `"${(p.post_name || 'Biaya Pendidikan').replace(/"/g, '""')}"`,
+        amount,
+        `"${(p.payment_method || 'Cash').replace(/"/g, '""')}"`,
+        `"${(p.status || 'Paid').replace(/"/g, '""')}"`,
+        `"${(p.cashier_name || 'Kasir Loket').replace(/"/g, '""')}"`,
+        `"${(p.notes || '-').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Rekap_Transaksi_Kasir_Cendekia_${historyPeriod}_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     setCashReceived(payAmount);
@@ -1024,7 +1088,7 @@ export default function CashierPOS() {
               ))}
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
               <select
                 value={historyMethod}
                 onChange={(e) => setHistoryMethod(e.target.value)}
@@ -1036,16 +1100,35 @@ export default function CashierPOS() {
                 <option value="QRIS">QRIS</option>
               </select>
 
-              <div className="relative w-full md:w-64">
+              <div className="relative w-full md:w-56">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder="Cari No. Kuitansi / Siswa..."
+                  placeholder="Cari Kuitansi / Siswa..."
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                 />
               </div>
+
+              {/* ACTION EXPORT BUTTONS */}
+              <button
+                onClick={handleExportCSV}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Download Data Transaksi ke format Excel / CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Export Excel/CSV</span>
+              </button>
+
+              <button
+                onClick={() => setPrintRekapModal(true)}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Pratinjau & Cetak Rekapitulasi Kasir / PDF"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Cetak Rekap</span>
+              </button>
             </div>
           </div>
 
@@ -1109,6 +1192,179 @@ export default function CashierPOS() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL CETAK REKAPITULASI TRANSAKSI KASIR ================= */}
+      {printRekapModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 md:p-8 space-y-6 shadow-2xl border border-slate-200 my-8">
+            {/* Header Dialog Controls (Hidden on Print) */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
+                <h3 className="text-lg font-bold text-slate-800">Pratinjau Rekapitulasi Transaksi Kasir</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak Dokumen / Simpan PDF</span>
+                </button>
+                <button
+                  onClick={() => setPrintRekapModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* PRINTABLE CONTENT AREA */}
+            <div className="printable-report space-y-5 text-slate-800">
+              {/* School Official Header */}
+              <div className="text-center border-b-2 border-slate-900 pb-4">
+                <h2 className="text-lg md:text-xl font-black uppercase tracking-wider text-slate-900">
+                  SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN
+                </h2>
+                <p className="text-xs font-semibold text-slate-600 mt-0.5">
+                  KBTK-IT &amp; SDIT Cendekia Lamongan • Jl. Veteran No. 45 Lamongan, Jawa Timur
+                </p>
+                <div className="mt-2 inline-block bg-slate-100 px-3 py-1 rounded-full border border-slate-300">
+                  <span className="text-xs font-black uppercase text-slate-800">
+                    LAPORAN REKAPITULASI PENERIMAAN KASIR / LOKET PEMBAYARAN
+                  </span>
+                </div>
+              </div>
+
+              {/* Meta Info Filter */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 font-bold uppercase text-[10px] block">Filter Periode</span>
+                  <span className="font-bold text-slate-800 capitalize">
+                    {historyPeriod === 'all' ? 'Semua Periode' : historyPeriod === 'harian' ? 'Hari Ini' : historyPeriod === 'pekanan' ? 'Pekan Ini' : 'Bulan Ini'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase text-[10px] block">Metode Bayar</span>
+                  <span className="font-bold text-slate-800">{historyMethod || 'Semua Metode'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase text-[10px] block">Waktu Cetak</span>
+                  <span className="font-bold text-slate-800">
+                    {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase text-[10px] block">Total Transaksi</span>
+                  <span className="font-bold text-emerald-700">{historySummary.totalCount} Transaksi</span>
+                </div>
+              </div>
+
+              {/* Summary Totals Table */}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-emerald-800 font-bold uppercase block">Total Penerimaan</span>
+                  <span className="text-sm md:text-base font-black text-emerald-900">
+                    Rp {historySummary.totalAmount.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="p-3 bg-teal-50 rounded-xl border border-teal-200">
+                  <span className="text-[10px] text-teal-800 font-bold uppercase block">Penerimaan Tunai</span>
+                  <span className="text-sm md:text-base font-black text-teal-900">
+                    Rp {historySummary.totalCash.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                  <span className="text-[10px] text-blue-800 font-bold uppercase block">Penerimaan Non-Tunai</span>
+                  <span className="text-sm md:text-base font-black text-blue-900">
+                    Rp {historySummary.totalNonCash.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detail Items Table */}
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase">
+                      <th className="py-2 px-3 text-center w-10">No</th>
+                      <th className="py-2 px-3">No. Kuitansi</th>
+                      <th className="py-2 px-3">Tanggal &amp; Waktu</th>
+                      <th className="py-2 px-3">NIS</th>
+                      <th className="py-2 px-3">Nama Siswa</th>
+                      <th className="py-2 px-3">Kelas / Unit</th>
+                      <th className="py-2 px-3">Pos Tagihan</th>
+                      <th className="py-2 px-3 text-right">Jumlah (Rp)</th>
+                      <th className="py-2 px-3 text-center">Metode</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {paymentHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="py-6 text-center text-slate-400">
+                          Tidak ada data transaksi.
+                        </td>
+                      </tr>
+                    ) : (
+                      paymentHistory.map((p, idx) => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          <td className="py-2 px-3 text-center">{idx + 1}</td>
+                          <td className="py-2 px-3 font-bold">{p.receipt_number || p.transaction_number || '-'}</td>
+                          <td className="py-2 px-3 text-slate-500">
+                            {p.payment_date ? new Date(p.payment_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </td>
+                          <td className="py-2 px-3 text-slate-500">{p.nis || '-'}</td>
+                          <td className="py-2 px-3 font-bold">{p.student_name || 'Siswa'}</td>
+                          <td className="py-2 px-3 text-slate-600">{p.class_name || p.unit_name || '-'}</td>
+                          <td className="py-2 px-3">{p.post_name || 'Biaya Pendidikan'}</td>
+                          <td className="py-2 px-3 text-right font-bold text-slate-900">
+                            Rp {Number(p.amount || 0).toLocaleString('id-ID')}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-[10px]">
+                              {p.payment_method || 'Cash'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 font-black border-t-2 border-slate-300">
+                      <td colSpan="7" className="py-2.5 px-3 text-right uppercase">Total Penerimaan:</td>
+                      <td className="py-2.5 px-3 text-right text-emerald-800 text-xs">
+                        Rp {historySummary.totalAmount.toLocaleString('id-ID')}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Official Signature Section */}
+              <div className="grid grid-cols-2 gap-8 pt-6 text-center text-xs">
+                <div>
+                  <p className="text-slate-500">Mengetahui,</p>
+                  <p className="font-bold text-slate-800">Kepala Sekolah / Bendahara Yayasan</p>
+                  <div className="h-16"></div>
+                  <p className="font-bold border-t border-slate-400 inline-block px-8 pt-1">
+                    ( .................................................. )
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Lamongan, {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="font-bold text-slate-800">Petugas Kasir Loket</p>
+                  <div className="h-16"></div>
+                  <p className="font-bold border-t border-slate-400 inline-block px-8 pt-1">
+                    ( Ustadz Hendra / Kasir Loket )
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
