@@ -7,8 +7,13 @@ router.get('/metrics', verifyToken, async (req, res) => {
   try {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. Total Cash & Bank Balances
-    const mainCash = await get(`SELECT balance FROM accounts WHERE code = '101.01'`);
+    // Auto-seed check if DB accounts is empty on cold-start
+    let mainCash = await get(`SELECT balance FROM accounts WHERE code = '101.01'`);
+    if (!mainCash) {
+      const seedData = require('../database/seed');
+      await seedData();
+      mainCash = await get(`SELECT balance FROM accounts WHERE code = '101.01'`);
+    }
     const bankBca = await get(`SELECT balance FROM accounts WHERE code = '101.02'`);
     const bankBsi = await get(`SELECT balance FROM accounts WHERE code = '101.03'`);
     const totalCashBalance = (mainCash?.balance || 0) + (bankBca?.balance || 0) + (bankBsi?.balance || 0);

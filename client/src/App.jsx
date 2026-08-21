@@ -23,7 +23,17 @@ const ProtectedLayout = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  if (!user) return <Navigate to="/login" replace />;
+  // Safe fallback to localStorage while React context state updates
+  const currentUser = user || (() => {
+    try {
+      const saved = localStorage.getItem('cp_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!currentUser) return <Navigate to="/login" replace />;
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] relative overflow-x-hidden">
@@ -32,6 +42,7 @@ const ProtectedLayout = () => {
         <Navbar onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} />
         <main className="flex-1 overflow-y-auto">
           <Routes>
+            <Route path="/" element={<Navigate to={currentUser.role === 'ortu' ? '/parent-portal' : '/dashboard'} replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/kasir-pos" element={<CashierPOS />} />
             <Route path="/invoices" element={<InvoicesList />} />
@@ -47,7 +58,7 @@ const ProtectedLayout = () => {
             <Route path="/gateway" element={<GatewaySettings />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
-            <Route path="*" element={<Navigate to={user.role === 'ortu' ? '/parent-portal' : '/dashboard'} replace />} />
+            <Route path="*" element={<Navigate to={currentUser.role === 'ortu' ? '/parent-portal' : '/dashboard'} replace />} />
           </Routes>
         </main>
       </div>
