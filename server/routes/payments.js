@@ -10,7 +10,7 @@ router.get('/', verifyToken, async (req, res) => {
     const { student_id, search, status, payment_method, period, date_from, date_to } = req.query;
 
     let sql = `
-      SELECT p.*, 
+      SELECT p.*, p.transaction_number as receipt_number,
              s.name as student_name, s.nis, 
              c.name as class_name, u.name as unit_name,
              i.invoice_number, i.nominal as invoice_nominal, i.month_period,
@@ -61,7 +61,7 @@ router.get('/', verifyToken, async (req, res) => {
 
     // Calculate Summary Metrics for the filtered payments
     const totalAmount = payments.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0);
-    const totalCash = payments.filter(p => p.status === 'Paid' && p.payment_method === 'Cash').reduce((acc, curr) => acc + curr.amount, 0);
+    const totalCash = payments.filter(p => p.status === 'Paid' && (p.payment_method === 'Cash' || p.payment_method === 'Tunai')).reduce((acc, curr) => acc + curr.amount, 0);
     const totalNonCash = totalAmount - totalCash;
 
     res.json({
@@ -130,9 +130,11 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     }
 
     const firstInv = invoices[0];
-    const txnNumber = targetInvoiceIds.length > 1 
-      ? `TXN-MULTI/${Date.now().toString().slice(-8)}/${firstInv.student_id}`
-      : `TXN/${Date.now().toString().slice(-8)}/${firstInv.student_id}`;
+    const sequenceNum = (Date.now() % 100000).toString().padStart(5, '0');
+    const now = new Date();
+    const monthCode = (now.getMonth() + 1).toString().padStart(2, '0');
+    const yearCode = now.getFullYear();
+    const txnNumber = `KW/${yearCode}/${monthCode}/${sequenceNum}`;
 
     let totalPaidInTxn = 0;
     let mainPaymentId = null;

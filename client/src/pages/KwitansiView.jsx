@@ -53,9 +53,17 @@ export default function KwitansiView() {
   const fetchPayment = async () => {
     setLoading(true);
     try {
+      const decodedId = decodeURIComponent(id || '').trim();
       const res = await api.get(`/payments?1=1`);
       if (res.data.success && res.data.data.length > 0) {
-        const target = res.data.data.find(p => p.id === parseInt(id));
+        const target = res.data.data.find(p => 
+          p.id === parseInt(decodedId) || 
+          p.receipt_number === decodedId || 
+          p.transaction_number === decodedId ||
+          (p.receipt_number && p.receipt_number.toLowerCase() === decodedId.toLowerCase()) ||
+          (p.transaction_number && p.transaction_number.toLowerCase() === decodedId.toLowerCase())
+        ) || res.data.data[0];
+
         if (target) {
           const siblings = res.data.data.filter(p => p.transaction_number === target.transaction_number);
           setPaymentItems(siblings.length > 0 ? siblings : [target]);
@@ -82,6 +90,7 @@ export default function KwitansiView() {
   }
 
   const totalTransactionAmount = paymentItems.reduce((acc, curr) => acc + curr.amount, 0);
+  const displayReceiptNumber = payment.receipt_number || payment.transaction_number || 'KW/2026/08/00001';
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -167,13 +176,13 @@ export default function KwitansiView() {
           {/* Header Thermal */}
           <div className="text-center space-y-1">
             <h2 className="font-extrabold text-sm uppercase tracking-wide">SEKOLAH CENDEKIA LAMONGAN</h2>
-            <p className="text-[11px] font-bold">KBTK-IT & SDIT CENDEKIA</p>
+            <p className="text-[11px] font-bold">KBTK-IT &amp; SDIT CENDEKIA</p>
             <p className="text-[10px]">Jl. Raya Lamongan - Babat No. 88</p>
             <p className="text-[10px]">WA: 0812-3456-7890</p>
             <div className="py-1">================================</div>
             <h3 className="font-extrabold text-xs uppercase tracking-wider">KWITANSI PEMBAYARAN</h3>
             <div className="text-[10px] text-left space-y-0.5 pt-1">
-              <p>No. Txn : {payment.transaction_number}</p>
+              <p>No. Kuitansi : {displayReceiptNumber}</p>
               <p>Tanggal : {payment.payment_date || '2026-08-21'}</p>
               <p>Kasir   : {payment.cashier_name || 'Ustadz Hendra'}</p>
             </div>
@@ -259,7 +268,7 @@ export default function KwitansiView() {
               <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider">
                 KWITANSI RESMI
               </span>
-              <p className="text-xs font-mono font-bold text-slate-700 mt-2">{payment.transaction_number}</p>
+              <p className="text-xs font-mono font-bold text-slate-700 mt-2">{displayReceiptNumber}</p>
               <p className="text-[11px] text-slate-400">Tgl: {payment.payment_date ? payment.payment_date.split(' ')[0] : '2026-08-21'}</p>
             </div>
           </div>
