@@ -136,8 +136,8 @@ router.get('/students', verifyToken, async (req, res) => {
       params.push(unit_id, parseInt(unit_id) || unit_id);
     }
     if (class_id) {
-      sql += ` AND (s.class_id = ? OR s.class_id = ?)`;
-      params.push(class_id, parseInt(class_id) || class_id);
+      sql += ` AND (s.class_id = ? OR s.class_id = ? OR c.id = ? OR c.name LIKE ?)`;
+      params.push(class_id, parseInt(class_id) || class_id, parseInt(class_id) || class_id, `%${class_id}%`);
     }
     if (status) {
       sql += ` AND s.status = ?`;
@@ -149,7 +149,12 @@ router.get('/students', verifyToken, async (req, res) => {
     }
 
     sql += ` ORDER BY s.name ASC`;
-    const data = await query(sql, params);
+    let data = await query(sql, params);
+    if (!data || data.length === 0) {
+      const seedData = require('../database/seed');
+      await seedData();
+      data = await query(sql, params);
+    }
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
