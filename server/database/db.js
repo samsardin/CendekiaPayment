@@ -68,6 +68,7 @@ const query = async (sql, params = []) => {
     } catch (pgErr) {
       console.warn('PostgreSQL query notice (using fallback):', pgErr.message);
     }
+  }
   if (!sqliteDb) {
     return [];
   }
