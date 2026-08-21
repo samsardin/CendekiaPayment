@@ -10,10 +10,11 @@ router.get('/', verifyToken, async (req, res) => {
     const { category, status, date_from, date_to } = req.query;
 
     let sql = `
-      SELECT e.*, a.name as account_name, a.code as account_code, u.name as creator_name, u2.name as approver_name
+      SELECT e.*, e.expense_number as voucher_number, e.title as description,
+             e.notes as attachment_url, a.name as account_name, a.code as account_code,
+             u2.name as approver_name
       FROM expenses e
       JOIN accounts a ON e.account_id = a.id
-      JOIN users u ON e.created_by = u.id
       LEFT JOIN users u2 ON e.approved_by = u2.id
       WHERE 1=1
     `;
@@ -70,9 +71,9 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin'), async (req,
     const status = isAutoApproved ? 'Approved' : 'Pending';
 
     const result = await run(
-      `INSERT INTO expenses (voucher_number, date, category, account_id, amount, description, attachment_url, created_by, status, approved_by)
+      `INSERT INTO expenses (expense_number, account_id, category, title, amount, recipient, date, status, notes, approved_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [voucherNum, date, category, account_id, amount, description || '', attachment_url || '', req.user.id, status, isAutoApproved ? req.user.id : null]
+      [voucherNum, account_id, category, description || category, amount, null, date, status, attachment_url || '', isAutoApproved ? req.user.id : null]
     );
 
     // Deduct cash balance if approved
@@ -127,12 +128,12 @@ router.put('/:id/approve', verifyToken, authorizeRoles('superadmin', 'admin'), a
       await run(`UPDATE accounts SET balance = balance - ? WHERE code = '101.01'`, [expense.amount]);
       await run(`UPDATE accounts SET balance = balance + ? WHERE id = ?`, [expense.amount, expense.account_id]);
 
-      await logAudit(req.user.id, req.user.name, req.user.role, 'APPROVE_EXPENSE', 'PENGELUARAN', `Persetujuan voucher ${expense.voucher_number} Rp ${expense.amount}`, req);
+      await logAudit(req.user.id, req.user.name, req.user.role, 'APPROVE_EXPENSE', 'PENGELUARAN', `Persetujuan voucher ${expense.expense_number} Rp ${expense.amount}`, req);
 
       res.json({ success: true, message: 'Pengeluaran disetujui.' });
     } else {
       await run(`UPDATE expenses SET status = 'Rejected', approved_by = ? WHERE id = ?`, [req.user.id, id]);
-      await logAudit(req.user.id, req.user.name, req.user.role, 'REJECT_EXPENSE', 'PENGELUARAN', `Penolakan voucher ${expense.voucher_number}`, req);
+      await logAudit(req.user.id, req.user.name, req.user.role, 'REJECT_EXPENSE', 'PENGELUARAN', `Penolakan voucher ${expense.expense_number}`, req);
 
       res.json({ success: true, message: 'Pengeluaran ditolak.' });
     }

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, get } = require('../database/db');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { parentOwnsStudent } = require('../utils/parentAccess');
 
 // Rekap Keuangan & Ringkasan Laporan
 router.get('/summary', verifyToken, async (req, res) => {
@@ -49,6 +50,10 @@ router.get('/summary', verifyToken, async (req, res) => {
 router.get('/student-ledger/:student_id', verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
+
+    if (!(await parentOwnsStudent(req.user, student_id))) {
+      return res.status(403).json({ success: false, error: 'Anda tidak memiliki akses ke data siswa ini' });
+    }
 
     const student = await get(
       `SELECT s.*, u.name as unit_name, c.name as class_name, p.father_name, p.phone as parent_phone

@@ -1,9 +1,11 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { query, get, run } = require('../database/db');
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { logAudit } = require('../middleware/auditMiddleware');
 const { sendWhatsApp } = require('../utils/whatsapp');
+const { parentOwnsInvoice } = require('../utils/parentAccess');
 
 // === PAYMENT GATEWAY SIMULATION ===
 
@@ -11,6 +13,10 @@ const { sendWhatsApp } = require('../utils/whatsapp');
 router.post('/charge', verifyToken, async (req, res) => {
   try {
     const { invoice_id, payment_method, amount } = req.body;
+
+    if (!(await parentOwnsInvoice(req.user, invoice_id))) {
+      return res.status(403).json({ success: false, error: 'Anda tidak memiliki akses ke invoice ini' });
+    }
 
     const invoice = await get(
       `SELECT i.*, s.name as student_name, s.nis, p.father_name, p.phone
@@ -59,8 +65,26 @@ router.post('/callback', async (req, res) => {
   try {
     const { order_id, invoice_id, amount, payment_method, status } = req.body;
 
+    const webhookSecret = process.env.PG_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const providedSecret = req.headers['x-gateway-signature'] || '';
+      const expected = Buffer.from(webhookSecret);
+      const received = Buffer.from(providedSecret);
+      if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+        return res.status(401).json({ success: false, error: 'Signature callback gateway tidak valid' });
+      }
+    }
+
     if (status !== 'PAID') {
       return res.json({ success: true, status: 'IGNORED' });
+    }
+
+    if (!order_id || !invoice_id || !payment_method || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Data callback gateway tidak lengkap atau nominal tidak valid' });
+    }
+
+    if (!order_id.startsWith(`PG-CENDEKIA-${invoice_id}-`)) {
+      return res.status(400).json({ success: false, error: 'Order ID tidak sesuai dengan invoice' });
     }
 
     const invoice = await get(
@@ -76,6 +100,24 @@ router.post('/callback', async (req, res) => {
     if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
 
     const payAmount = parseFloat(amount);
+    const remainingAmount = Math.max(0, invoice.nominal - invoice.discount_amount - invoice.paid_amount);
+    if (payAmount > remainingAmount + 0.01) {
+      return res.status(400).json({ success: false, error: 'Nominal callback melebihi sisa tagihan' });
+    }
+
+    const existingPayment = await get(
+      `SELECT id, transaction_number FROM payments WHERE payment_gateway_ref = ? AND status = 'Paid'`,
+      [order_id]
+    );
+    if (existingPayment) {
+      return res.json({
+        success: true,
+        idempotent: true,
+        transaction_number: existingPayment.transaction_number,
+        message: 'Callback sudah pernah diproses'
+      });
+    }
+
     const txnNumber = `TXN-PG/${Date.now().toString().slice(-8)}`;
 
     // Create payment

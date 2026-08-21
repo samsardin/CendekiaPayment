@@ -414,18 +414,18 @@ const seedData = async () => {
     console.log('✅ Invoices & Payments generated for all 70+ students!');
 
     // 10. Sample Expenses (Pengeluaran Sekolah)
-    const exp1 = await get(`SELECT id FROM expenses WHERE voucher_number = 'VCH-202608-001'`);
+    const exp1 = await get(`SELECT id FROM expenses WHERE expense_number = 'VCH-202608-001'`);
     if (!exp1) {
       await run(
-        `INSERT INTO expenses (voucher_number, date, category, account_id, amount, description, attachment_url, created_by, status, approved_by) VALUES (?, '2026-08-01', 'Gaji Pegawai', ?, 24500000, 'Gaji Ustadz & Ustadzah Bulan Juli 2026', '/uploads/nota-gaji.pdf', 2, 'Approved', 1)`,
+        `INSERT INTO expenses (expense_number, account_id, category, title, amount, date, status, notes, approved_by) VALUES (?, ?, 'Gaji Pegawai', 'Gaji Ustadz & Ustadzah Bulan Juli 2026', 24500000, '2026-08-01', 'Approved', '/uploads/nota-gaji.pdf', 1)`,
         ['VCH-202608-001', accountMap['500.01']]
       );
       await run(
-        `INSERT INTO expenses (voucher_number, date, category, account_id, amount, description, attachment_url, created_by, status, approved_by) VALUES (?, '2026-08-12', 'Dapur Cendekia', ?, 1850000, 'Belanja Bahan Dapur & Catering Rapat Guru', '/uploads/nota-dapur.jpg', 2, 'Approved', 1)`,
+        `INSERT INTO expenses (expense_number, account_id, category, title, amount, date, status, notes, approved_by) VALUES (?, ?, 'Dapur Cendekia', 'Belanja Bahan Dapur & Catering Rapat Guru', 1850000, '2026-08-12', 'Approved', '/uploads/nota-dapur.jpg', 1)`,
         ['VCH-202608-002', accountMap['500.02']]
       );
       await run(
-        `INSERT INTO expenses (voucher_number, date, category, account_id, amount, description, attachment_url, created_by, status, approved_by) VALUES (?, '2026-08-18', 'Listrik & Internet', ?, 1200000, 'Tagihan Indihome & PLN Sekolah', '/uploads/nota-pln.pdf', 2, 'Approved', 1)`,
+        `INSERT INTO expenses (expense_number, account_id, category, title, amount, date, status, notes, approved_by) VALUES (?, ?, 'Listrik & Internet', 'Tagihan Indihome & PLN Sekolah', 1200000, '2026-08-18', 'Approved', '/uploads/nota-pln.pdf', 1)`,
         ['VCH-202608-003', accountMap['500.03']]
       );
     }

@@ -32,10 +32,6 @@ router.post('/login', async (req, res) => {
       isMatch = false;
     }
 
-    if (!isMatch && password === 'password123') {
-      isMatch = true;
-    }
-
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'ERR-001: Email/No HP atau Password salah' });
     }

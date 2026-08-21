@@ -4,6 +4,7 @@ const { query, get, run } = require('../database/db');
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { resolveEffectiveNominal } = require('./pos');
 const { logAudit } = require('../middleware/auditMiddleware');
+const { isParent, parentOwnsStudent } = require('../utils/parentAccess');
 
 // 12 Months of Academic Year (Tahun Ajaran Juli - Juni)
 const AY_MONTHS = [
@@ -112,6 +113,12 @@ const ensureAllStudentInvoices = async (studentId) => {
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { student_id, class_id, unit_id, post_id, status, search, limit } = req.query;
+
+    if (isParent(req.user)) {
+      if (!student_id || !(await parentOwnsStudent(req.user, student_id))) {
+        return res.status(403).json({ success: false, error: 'Anda tidak memiliki akses ke tagihan siswa ini' });
+      }
+    }
 
     if (student_id) {
       await ensureAllStudentInvoices(student_id);

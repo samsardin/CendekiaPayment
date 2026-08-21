@@ -101,11 +101,15 @@ export default function CashierPOS() {
   useEffect(() => {
     if (selectedInvoices.length > 0) {
       const totalRemaining = selectedInvoices.reduce((acc, inv) => {
-        const rem = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
-        return acc + rem;
+        const nominal = Number(inv.nominal || 500000);
+        const discount = Number(inv.discount_amount || 0);
+        const paid = Number(inv.paid_amount || 0);
+        const rem = Math.max(0, nominal - discount - paid);
+        return acc + (rem > 0 ? rem : nominal);
       }, 0);
-      setPayAmount(totalRemaining.toString());
-      setCashReceived(totalRemaining.toString());
+      const safeAmount = totalRemaining > 0 ? totalRemaining : 500000;
+      setPayAmount(safeAmount.toString());
+      setCashReceived(safeAmount.toString());
     } else {
       setPayAmount('');
       setCashReceived('');
@@ -146,6 +150,7 @@ export default function CashierPOS() {
       }
     } catch (err) {
       console.error(err);
+      setStudents([]);
     }
   };
 
@@ -157,6 +162,7 @@ export default function CashierPOS() {
       }
     } catch (err) {
       console.error(err);
+      setInvoices([]);
     }
   };
 
@@ -260,33 +266,29 @@ export default function CashierPOS() {
 
   // Process POS Checkout Submission
   const handleProcessPayment = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
     if (selectedInvoices.length === 0) {
-      alert('Pilih minimal 1 tagihan yang ingin dibayar!');
+      alert('Pilih minimal 1 tagihan atau bulan yang ingin dibayar!');
       return;
     }
 
-    const amountNum = parseFloat(payAmount);
-    if (!amountNum || amountNum <= 0) {
-      alert('Masukkan nominal pembayaran yang valid!');
-      return;
+    let amountNum = parseFloat(payAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      amountNum = selectedInvoices.reduce((acc, inv) => {
+        const nominal = Number(inv.nominal || 500000);
+        const discount = Number(inv.discount_amount || 0);
+        const paid = Number(inv.paid_amount || 0);
+        const rem = Math.max(0, nominal - discount - paid);
+        return acc + (rem > 0 ? rem : nominal);
+      }, 0) || 500000;
+      setPayAmount(amountNum.toString());
     }
 
-    const totalRemaining = selectedInvoices.reduce((acc, inv) => {
-      const rem = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
-      return acc + rem;
-    }, 0);
-
-    if (amountNum > totalRemaining) {
-      alert(`Nominal pembayaran (Rp ${amountNum.toLocaleString('id-ID')}) melebihi sisa tagihan terpilih (Rp ${totalRemaining.toLocaleString('id-ID')}).`);
-      return;
-    }
-
-    const cashNum = parseFloat(cashReceived || 0);
-    if (payMethod === 'Cash' && cashNum < amountNum) {
-      alert(`Uang diterima (Rp ${cashNum.toLocaleString('id-ID')}) kurang dari nominal pembayaran (Rp ${amountNum.toLocaleString('id-ID')}).`);
-      return;
+    let cashNum = parseFloat(cashReceived);
+    if (isNaN(cashNum) || cashNum < amountNum) {
+      cashNum = amountNum;
+      setCashReceived(cashNum.toString());
     }
 
     setLoading(true);
@@ -301,6 +303,9 @@ export default function CashierPOS() {
       });
 
       const actualReceiptNum = res.data?.receipt_number || res.data?.data?.receipt_number || res.data?.transaction_number || receiptNum;
+      if (!res.data?.success || !actualReceiptNum) {
+        throw new Error(res.data?.error || 'Pembayaran gagal diproses');
+      }
 
       const newRecord = {
         id: res.data?.payment_id || Date.now(),
@@ -335,39 +340,8 @@ export default function CashierPOS() {
       setCashReceived('');
       setNotes('');
     } catch (err) {
-      console.warn('POS Payment Notice:', err);
-      
-      const newRecord = {
-        id: Date.now(),
-        receipt_number: receiptNum,
-        student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
-        nis: selectedStudent?.nis || '2026021001',
-        class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
-        unit_name: selectedUnit?.name || 'SDIT Cendekia',
-        post_name: selectedInvoices.map(i => i.post_name).join(', ') || 'Biaya Pendidikan / SPP',
-        amount: amountNum,
-        payment_method: payMethod,
-        payment_date: new Date().toISOString(),
-        cashier_name: 'Ust. Hendra (Kasir Utama)',
-        status: 'Paid'
-      };
-
-      setPaymentHistory(prev => [newRecord, ...prev]);
-
-      setSuccessModal({
-        payment: { amount: amountNum },
-        receipt_number: receiptNum,
-        change: changeAmount,
-        itemsCount: selectedInvoices.length,
-        student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
-        class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
-        unit_name: selectedUnit?.name || 'SDIT Cendekia'
-      });
-
-      setSelectedInvoices([]);
-      setPayAmount('');
-      setCashReceived('');
-      setNotes('');
+      console.error('POS Payment Error:', err);
+      alert(err.response?.data?.error || err.message || 'Pembayaran gagal diproses. Data belum disimpan.');
     } finally {
       setLoading(false);
     }
@@ -608,7 +582,7 @@ export default function CashierPOS() {
                     ];
                   };
 
-                  const activeStudentList = students && students.length > 0 ? students : getFallbackStudents(selectedClass?.name);
+                  const activeStudentList = students || [];
                   const displayList = activeStudentList.filter(s => 
                     s.name?.toLowerCase().includes(studentSearch.toLowerCase()) ||
                     s.nis?.includes(studentSearch)
@@ -720,7 +694,7 @@ export default function CashierPOS() {
                         return fallbackList;
                       };
 
-                      const currentInvoices = invoices && invoices.length > 0 ? invoices : getFallbackInvoicesForStudent(selectedStudent);
+                      const currentInvoices = invoices || [];
                       const sppList = currentInvoices.filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'));
 
                       return sppList.map((inv) => {
@@ -819,7 +793,7 @@ export default function CashierPOS() {
                         }));
                       };
 
-                      const currentInvoices = invoices && invoices.length > 0 ? invoices : getFallbackNonSppInvoices(selectedStudent);
+                      const currentInvoices = invoices || [];
                       const nonSppList = currentInvoices.filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')));
 
                       return nonSppList.map((inv) => {

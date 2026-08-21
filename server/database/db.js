@@ -289,6 +289,30 @@ const initDB = async () => {
             FOREIGN KEY (approved_by) REFERENCES users(id)
           );
         `);
+
+        const expenseColumns = await query(`PRAGMA table_info(expenses)`);
+        const hasExpenseColumn = (name) => expenseColumns.some((column) => column.name === name);
+        if (!hasExpenseColumn('expense_number')) {
+          await run(`ALTER TABLE expenses ADD COLUMN expense_number TEXT`);
+          if (hasExpenseColumn('voucher_number')) {
+            await run(`UPDATE expenses SET expense_number = voucher_number WHERE expense_number IS NULL`);
+          }
+        }
+        if (!hasExpenseColumn('title')) {
+          await run(`ALTER TABLE expenses ADD COLUMN title TEXT`);
+          if (hasExpenseColumn('description')) {
+            await run(`UPDATE expenses SET title = COALESCE(description, category) WHERE title IS NULL`);
+          }
+        }
+        if (!hasExpenseColumn('recipient')) {
+          await run(`ALTER TABLE expenses ADD COLUMN recipient TEXT`);
+        }
+        if (!hasExpenseColumn('notes')) {
+          await run(`ALTER TABLE expenses ADD COLUMN notes TEXT`);
+          if (hasExpenseColumn('attachment_url')) {
+            await run(`UPDATE expenses SET notes = attachment_url WHERE notes IS NULL`);
+          }
+        }
         await run(`
           CREATE TABLE IF NOT EXISTS wa_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

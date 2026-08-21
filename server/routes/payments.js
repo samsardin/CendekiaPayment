@@ -4,6 +4,7 @@ const { query, get, run } = require('../database/db');
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { logAudit } = require('../middleware/auditMiddleware');
 const { sendWhatsApp } = require('../utils/whatsapp');
+const { isParent, parentOwnsInvoice } = require('../utils/parentAccess');
 
 // Get payment transactions with period filters (Harian, Pekanan, Bulanan)
 router.get('/', verifyToken, async (req, res) => {
@@ -27,6 +28,15 @@ router.get('/', verifyToken, async (req, res) => {
       WHERE 1=1
     `;
     let params = [];
+
+    if (isParent(req.user)) {
+      sql += ` AND EXISTS (
+        SELECT 1 FROM students ps
+        JOIN parents pp_parent ON ps.parent_id = pp_parent.id
+        WHERE ps.id = p.student_id AND pp_parent.user_id = ?
+      )`;
+      params.push(req.user.id);
+    }
 
     if (student_id) {
       sql += ` AND p.student_id = ?`;
@@ -93,6 +103,13 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
 
     if (targetInvoiceIds.length === 0) {
       return res.status(400).json({ success: false, error: 'Pilih minimal 1 tagihan atau bulan yang akan dibayar' });
+    }
+    if (isParent(req.user)) {
+      for (const invoiceId of targetInvoiceIds) {
+        if (!(await parentOwnsInvoice(req.user, invoiceId))) {
+          return res.status(403).json({ success: false, error: 'Anda tidak memiliki akses ke invoice ini' });
+        }
+      }
     }
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ success: false, error: 'Nominal pembayaran harus lebih besar dari Rp 0' });
@@ -178,17 +195,15 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     let paidMonthList = [];
     let overallStatus = 'Lunas';
 
-    // Process each invoice
+    // Process each invoice & insert payment transaction to Supabase DB
     for (const inv of invoices) {
-      if (inv.status === 'Lunas') continue;
-
-      const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+      const remaining = Math.max(0, (inv.nominal || 500000) - (inv.discount_amount || 0) - (inv.paid_amount || 0));
       const isSpp = inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan');
       
       // Determine installment or full payment amount for this invoice
-      const payForThisInv = (targetInvoiceIds.length === 1 && !isSpp && numericAmount < remaining)
+      const payForThisInv = (targetInvoiceIds.length === 1 && !isSpp && numericAmount < remaining && remaining > 0)
         ? numericAmount
-        : remaining;
+        : (remaining > 0 ? remaining : numericAmount);
 
       const paymentResult = await run(
         `INSERT INTO payments (transaction_number, invoice_id, student_id, cashier_id, amount, payment_method, payment_gateway_ref, status, notes)
@@ -265,24 +280,7 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     });
   } catch (err) {
     console.error('POS Payment Route Error:', err);
-    const fallbackTxn = `KW/2026/08/${(Date.now() % 100000).toString().padStart(5, '0')}`;
-    res.json({
-      success: true,
-      data: {
-        id: Date.now(),
-        receipt_number: fallbackTxn,
-        transaction_number: fallbackTxn,
-        amount: Number(req.body.amount || 500000),
-        status: 'Lunas'
-      },
-      payment_id: Date.now(),
-      receipt_number: fallbackTxn,
-      transaction_number: fallbackTxn,
-      paid_amount: Number(req.body.amount || 500000),
-      remaining_amount: 0,
-      status: 'Lunas',
-      message: 'Pembayaran berhasil diproses dan kwitansi diterbitkan.'
-    });
+    res.status(500).json({ success: false, error: 'Pembayaran gagal diproses. Tidak ada kwitansi yang diterbitkan.' });
   }
 });
 
