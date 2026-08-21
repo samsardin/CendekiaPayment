@@ -779,7 +779,7 @@ export default function CashierPOS() {
                         return fallbackList;
                       };
 
-                      const currentInvoices = invoices || [];
+                      const currentInvoices = (invoices && invoices.length > 0) ? invoices : getFallbackInvoicesForStudent(selectedStudent);
                       const sppList = currentInvoices.filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'));
 
                       return sppList.map((inv) => {
@@ -878,7 +878,7 @@ export default function CashierPOS() {
                         }));
                       };
 
-                      const currentInvoices = invoices || [];
+                      const currentInvoices = (invoices && invoices.length > 0) ? invoices : getFallbackInvoicesForStudent(selectedStudent);
                       const nonSppList = currentInvoices.filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')));
 
                       return nonSppList.map((inv) => {
