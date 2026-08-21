@@ -161,9 +161,10 @@ router.get('/', verifyToken, async (req, res) => {
       sql += ` AND i.status = ?`;
       params.push(status);
     }
-    if (search) {
-      sql += ` AND (i.invoice_number LIKE ? OR s.name LIKE ? OR s.nis LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    if (search && search.trim()) {
+      const searchClean = `%${search.trim().toLowerCase()}%`;
+      sql += ` AND (LOWER(COALESCE(i.invoice_number, '')) LIKE ? OR LOWER(COALESCE(s.name, '')) LIKE ? OR LOWER(COALESCE(s.nis, '')) LIKE ?)`;
+      params.push(searchClean, searchClean, searchClean);
     }
 
     sql += ` ORDER BY i.due_date ASC, i.id DESC`;

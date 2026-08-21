@@ -50,9 +50,10 @@ router.get('/', verifyToken, async (req, res) => {
       sql += ` AND p.payment_method = ?`;
       params.push(payment_method);
     }
-    if (search) {
-      sql += ` AND (p.transaction_number LIKE ? OR s.name LIKE ? OR s.nis LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    if (search && search.trim()) {
+      const searchClean = `%${search.trim().toLowerCase()}%`;
+      sql += ` AND (LOWER(COALESCE(p.transaction_number, '')) LIKE ? OR LOWER(COALESCE(s.name, '')) LIKE ? OR LOWER(COALESCE(s.nis, '')) LIKE ?)`;
+      params.push(searchClean, searchClean, searchClean);
     }
 
     // Period filters (Harian, Pekanan, Bulanan)

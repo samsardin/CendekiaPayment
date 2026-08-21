@@ -773,10 +773,13 @@ export default function CashierPOS() {
                   };
 
                   const activeStudentList = students || [];
-                  const displayList = activeStudentList.filter(s => 
-                    s.name?.toLowerCase().includes(studentSearch.toLowerCase()) ||
-                    s.nis?.includes(studentSearch)
-                  );
+                  const q = (studentSearch || '').trim().toLowerCase();
+                  const displayList = activeStudentList.filter(s => {
+                    if (!q) return true;
+                    const name = (s.name || '').toLowerCase();
+                    const nis = (s.nis || '').toLowerCase();
+                    return name.includes(q) || nis.includes(q);
+                  });
 
                   if (displayList.length === 0) {
                     return <p className="text-xs text-slate-400 col-span-3 text-center py-6">Tidak ada siswa ditemukan</p>;

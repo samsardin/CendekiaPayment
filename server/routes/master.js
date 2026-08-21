@@ -148,9 +148,10 @@ router.get('/students', verifyToken, async (req, res) => {
       sql += ` AND s.status = ?`;
       params.push(status);
     }
-    if (search) {
-      sql += ` AND (s.name LIKE ? OR s.nis LIKE ? OR s.nisn LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    if (search && search.trim()) {
+      const searchClean = `%${search.trim().toLowerCase()}%`;
+      sql += ` AND (LOWER(COALESCE(s.name, '')) LIKE ? OR LOWER(COALESCE(s.nis, '')) LIKE ? OR LOWER(COALESCE(s.nisn, '')) LIKE ?)`;
+      params.push(searchClean, searchClean, searchClean);
     }
 
     sql += ` ORDER BY s.name ASC`;
