@@ -80,8 +80,8 @@ export default function CashierPOS() {
   const [loading, setLoading] = useState(false);
   const [successModal, setSuccessModal] = useState(null);
 
-  // History State (Harian, Pekanan, Bulanan)
-  const [historyPeriod, setHistoryPeriod] = useState('harian');
+  // History State (Harian, Pekanan, Bulanan, Semua)
+  const [historyPeriod, setHistoryPeriod] = useState('all');
   const [historyMethod, setHistoryMethod] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [paymentHistory, setPaymentHistory] = useState([]);
@@ -869,10 +869,10 @@ export default function CashierPOS() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-full md:w-auto">
               {[
+                { code: 'all', label: 'Semua Transaksi' },
                 { code: 'harian', label: 'Hari Ini' },
                 { code: 'pekanan', label: 'Pekan Ini' },
-                { code: 'bulanan', label: 'Bulan Ini' },
-                { code: 'all', label: 'Semua' }
+                { code: 'bulanan', label: 'Bulan Ini' }
               ].map(p => (
                 <button
                   key={p.code}
