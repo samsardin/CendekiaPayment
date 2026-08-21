@@ -375,6 +375,7 @@ export default function CashierPOS() {
       cashNum = amountNum;
       setCashReceived(cashNum.toString());
     }
+    const changeAmount = payMethod === 'Cash' ? Math.max(0, cashNum - amountNum) : 0;
 
     setLoading(true);
     try {
@@ -784,8 +785,12 @@ export default function CashierPOS() {
 
                       return sppList.map((inv) => {
                         const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                        const isPaid = inv.status === 'Lunas';
-                        const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+                        const statusStr = String(inv.status || 'Belum Dibayar');
+                        const isPaid = statusStr === 'Lunas';
+                        const nominal = Number(inv.nominal || 500000);
+                        const discount = Number(inv.discount_amount || 0);
+                        const paid = Number(inv.paid_amount || 0);
+                        const remaining = Math.max(0, nominal - discount - paid);
 
                         return (
                           <div
@@ -822,16 +827,16 @@ export default function CashierPOS() {
                               <p className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                                 Rp {remaining.toLocaleString('id-ID')}
                               </p>
-                              {inv.discount_amount > 0 && (
+                              {discount > 0 && (
                                 <p className={`text-[9px] ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
-                                  Disc: -Rp {inv.discount_amount.toLocaleString('id-ID')}
+                                  Disc: -Rp {discount.toLocaleString('id-ID')}
                                 </p>
                               )}
                             </div>
 
                             <div className="text-[9px] font-bold">
                               <span className={isPaid ? 'text-emerald-700' : isSelected ? 'text-emerald-100' : 'text-rose-600'}>
-                                {isPaid ? '✓ LUNAS' : `STATUS: ${inv.status.toUpperCase()}`}
+                                {isPaid ? '✓ LUNAS' : `STATUS: ${statusStr.toUpperCase()}`}
                               </span>
                             </div>
                           </div>
@@ -855,7 +860,7 @@ export default function CashierPOS() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(() => {
-                      const getFallbackNonSppInvoices = (student) => {
+                      const getFallbackInvoicesForStudent = (student) => {
                         if (!student) return [];
                         const nonSppItems = [
                           { id: 2001, name: 'Infaq Pembangunan SDIT', nominal: 4500000, paid: 1500000, status: 'Sebagian' },
@@ -883,8 +888,12 @@ export default function CashierPOS() {
 
                       return nonSppList.map((inv) => {
                         const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                        const isPaid = inv.status === 'Lunas';
-                        const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+                        const statusStr = String(inv.status || 'Belum Dibayar');
+                        const isPaid = statusStr === 'Lunas';
+                        const nominal = Number(inv.nominal || 0);
+                        const discount = Number(inv.discount_amount || 0);
+                        const paid = Number(inv.paid_amount || 0);
+                        const remaining = Math.max(0, nominal - discount - paid);
 
                         return (
                           <div
@@ -913,17 +922,17 @@ export default function CashierPOS() {
 
                           <div className="flex items-center justify-between text-xs pt-1">
                             <span className="text-slate-500">Nominal Tagihan:</span>
-                            <span className="font-bold text-slate-800">Rp {inv.nominal.toLocaleString('id-ID')}</span>
+                            <span className="font-bold text-slate-800">Rp {nominal.toLocaleString('id-ID')}</span>
                           </div>
 
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-slate-500">Sudah Dibayar:</span>
-                            <span className="font-bold text-emerald-700">Rp {inv.paid_amount.toLocaleString('id-ID')}</span>
+                            <span className="font-bold text-emerald-700">Rp {paid.toLocaleString('id-ID')}</span>
                           </div>
 
-                          <div className="flex items-center justify-between text-xs font-extrabold border-t border-slate-100 pt-1.5">
-                            <span className="text-slate-700">Sisa Piutang:</span>
-                            <span className="text-slate-900 text-sm">Rp {remaining.toLocaleString('id-ID')}</span>
+                          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                            <span className="text-slate-500 font-bold">Sisa Tagihan:</span>
+                            <span className="font-black text-amber-700 text-sm">Rp {remaining.toLocaleString('id-ID')}</span>
                           </div>
                         </div>
                       );
