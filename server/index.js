@@ -23,14 +23,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 let isSeeded = false;
-app.use(async (req, res, next) => {
+app.use((req, res, next) => {
   if (process.env.VERCEL && !isSeeded) {
-    try {
-      await seedData();
-      isSeeded = true;
-    } catch (err) {
-      console.error('Vercel DB auto-seed error:', err);
-    }
+    isSeeded = true;
+    seedData().catch((err) => console.error('Background DB auto-seed notice:', err.message));
   }
   next();
 });
