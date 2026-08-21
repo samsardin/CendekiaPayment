@@ -322,6 +322,7 @@ const seedData = async () => {
           studentId = res.id;
         } else {
           studentId = existing.id;
+          await run(`UPDATE students SET class_id = ?, unit_id = ?, status = 'Aktif' WHERE id = ?`, [cId, group.unitId, existing.id]);
         }
         allStudents.push({ id: studentId, nis, name: st.name, unitId: group.unitId, classId: cId });
       }

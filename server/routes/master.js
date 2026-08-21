@@ -122,12 +122,12 @@ router.get('/students', verifyToken, async (req, res) => {
     let params = [];
 
     if (unit_id) {
-      sql += ` AND s.unit_id = ?`;
-      params.push(unit_id);
+      sql += ` AND (s.unit_id = ? OR s.unit_id = ?)`;
+      params.push(unit_id, parseInt(unit_id) || unit_id);
     }
     if (class_id) {
-      sql += ` AND s.class_id = ?`;
-      params.push(class_id);
+      sql += ` AND (s.class_id = ? OR s.class_id = ?)`;
+      params.push(class_id, parseInt(class_id) || class_id);
     }
     if (status) {
       sql += ` AND s.status = ?`;
