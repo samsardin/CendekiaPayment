@@ -179,6 +179,29 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 15. Nominal Rules Table (Level 1: Default, Level 2: Unit/Class, Level 3: Student)
+CREATE TABLE IF NOT EXISTS nominal_rules (
+    id SERIAL PRIMARY KEY,
+    post_id INT NOT NULL REFERENCES payment_posts(id) ON DELETE CASCADE,
+    target_type VARCHAR(20) NOT NULL CHECK(target_type IN ('default', 'unit', 'class', 'student')),
+    target_id INT,
+    amount NUMERIC(15, 2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 16. Gateway Configs Table
+CREATE TABLE IF NOT EXISTS gateway_configs (
+    id SERIAL PRIMARY KEY,
+    provider VARCHAR(50) NOT NULL,
+    api_key VARCHAR(255),
+    api_secret VARCHAR(255),
+    merchant_code VARCHAR(100),
+    sandbox_mode INT DEFAULT 1,
+    callback_url TEXT,
+    is_active INT DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ====================================================================
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE IN SUPABASE
 -- ====================================================================

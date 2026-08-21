@@ -1,4 +1,10 @@
-const { Pool } = require('pg');
+require('dotenv').config();
+let Pool = null;
+try {
+  Pool = require('pg').Pool;
+} catch (e) {
+  // pg is optional when using SQLite fallback
+}
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +15,7 @@ const dbUrl = process.env.DATABASE_URL ||
               process.env.POSTGRES_URL_NON_POOLING || 
               process.env.VERCEL_POSTGRES_URL;
 
-const isPg = Boolean(dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase') || dbUrl.includes('neon') || dbUrl.includes('vercel')));
+const isPg = Boolean(Pool && dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase') || dbUrl.includes('neon') || dbUrl.includes('vercel')));
 
 let pool = null;
 let sqliteDb = null;
@@ -42,6 +48,7 @@ const convertSql = (sql) => {
   let pgSql = sql.replace(/\?/g, () => `$${idx++}`);
   pgSql = pgSql.replace(/DATE\('now', 'localtime'\)/gi, 'CURRENT_DATE');
   pgSql = pgSql.replace(/DATE\('now', '-7 days'\)/gi, "(CURRENT_DATE - INTERVAL '7 days')");
+  pgSql = pgSql.replace(/DATE\('now'\)/gi, 'CURRENT_DATE');
   pgSql = pgSql.replace(/strftime\('%Y-%m', 'now'\)/gi, "to_char(CURRENT_DATE, 'YYYY-MM')");
   pgSql = pgSql.replace(/strftime\('%Y-%m', ([a-zA-Z0-9_\.]+)\)/gi, "to_char($1, 'YYYY-MM')");
   return pgSql;
@@ -127,6 +134,7 @@ const initDB = async () => {
         await pool.query(sql);
         console.log('✅ Supabase PostgreSQL Schema initialized successfully.');
       }
+      return;
     } catch (err) {
       console.warn('Supabase schema init notice:', err.message);
     }
@@ -135,8 +143,8 @@ const initDB = async () => {
   return new Promise((resolve) => {
     sqliteDb.serialize(async () => {
       try {
-        await run(`PRAGMA foreign_keys = ON;`);
-        await run(`
+        sqliteDb.run(`PRAGMA foreign_keys = ON;`);
+        sqliteDb.run(`
           CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -334,6 +342,43 @@ const initDB = async () => {
             module TEXT NOT NULL,
             details TEXT,
             ip_address TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        await run(`
+          CREATE TABLE IF NOT EXISTS discounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL,
+            type TEXT CHECK(type IN ('percentage', 'fixed')),
+            value REAL NOT NULL,
+            reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+            FOREIGN KEY (post_id) REFERENCES payment_posts(id) ON DELETE CASCADE
+          );
+        `);
+        await run(`
+          CREATE TABLE IF NOT EXISTS nominal_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL CHECK(target_type IN ('default', 'unit', 'class', 'student')),
+            target_id INTEGER,
+            amount REAL NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (post_id) REFERENCES payment_posts(id) ON DELETE CASCADE
+          );
+        `);
+        await run(`
+          CREATE TABLE IF NOT EXISTS gateway_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            api_key TEXT,
+            api_secret TEXT,
+            merchant_code TEXT,
+            sandbox_mode INTEGER DEFAULT 1,
+            callback_url TEXT,
+            is_active INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
         `);

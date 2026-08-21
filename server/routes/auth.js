@@ -9,16 +9,17 @@ const { logAudit } = require('../middleware/auditMiddleware');
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
-    const { usernameOrEmail, password } = req.body;
-    if (!usernameOrEmail || !password) {
+    const identifier = req.body.usernameOrEmail || req.body.email || req.body.username || req.body.phone;
+    const { password } = req.body;
+    if (!identifier || !password) {
       return res.status(400).json({ success: false, error: 'Email/No HP dan Password wajib diisi' });
     }
 
-    let user = await get(`SELECT * FROM users WHERE email = ? OR phone = ?`, [usernameOrEmail, usernameOrEmail]);
+    let user = await get(`SELECT * FROM users WHERE email = ? OR phone = ?`, [identifier, identifier]);
     if (!user) {
       const seedData = require('../database/seed');
       await seedData();
-      user = await get(`SELECT * FROM users WHERE email = ? OR phone = ?`, [usernameOrEmail, usernameOrEmail]);
+      user = await get(`SELECT * FROM users WHERE email = ? OR phone = ?`, [identifier, identifier]);
     }
 
     if (!user) {

@@ -68,6 +68,7 @@ export default function CashierPOS() {
 
   // Multi-Select Invoices State (Supports paying multiple SPP months simultaneously into 1 invoice transaction)
   const [selectedInvoices, setSelectedInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
 
   // Search filter for students
   const [studentSearch, setStudentSearch] = useState('');
@@ -142,112 +143,34 @@ export default function CashierPOS() {
     }
   };
 
-  const getFallbackStudents = (classId) => {
-    return [
-      {
-        id: 239,
-        nis: '2026021001',
-        nisn: '2026001',
-        name: 'Muhammad Ali Rayyan',
-        gender: 'L',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Ahmad Subagyo',
-        parent_phone: '081298765432',
-        status: 'Aktif'
-      },
-      {
-        id: 240,
-        nis: '2026021002',
-        nisn: '2026002',
-        name: 'Khalifah Umar Al-Ghazi',
-        gender: 'L',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Hendra Subagyo',
-        parent_phone: '081298765433',
-        status: 'Aktif'
-      },
-      {
-        id: 241,
-        nis: '2026021003',
-        nisn: '2026003',
-        name: 'Syakira Nabila',
-        gender: 'P',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Fajar Subagyo',
-        parent_phone: '081298765434',
-        status: 'Aktif'
-      },
-      {
-        id: 256,
-        nis: '2026022001',
-        nisn: '2026004',
-        name: 'Hamzah Abdul Jabbar',
-        gender: 'L',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Subagyo',
-        parent_phone: '081298765435',
-        status: 'Aktif'
-      },
-      {
-        id: 257,
-        nis: '2026022002',
-        nisn: '2026005',
-        name: 'Zaskia Adya Mecca',
-        gender: 'P',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Mecca',
-        parent_phone: '081298765436',
-        status: 'Aktif'
-      },
-      {
-        id: 274,
-        nis: '2026023001',
-        nisn: '2026007',
-        name: 'Fatimah Az-Zahra Subagyo',
-        gender: 'P',
-        class_id: classId,
-        class_name: 'Kelas Utama',
-        unit_name: 'SDIT Cendekia',
-        father_name: 'Bpk. Ahmad Subagyo',
-        parent_phone: '081298765432',
-        status: 'Aktif'
-      }
-    ];
-  };
-
   const fetchStudents = async (classId) => {
     try {
       const res = await api.get(`/master/students?class_id=${classId}`);
-      if (res.data && res.data.success && res.data.data && res.data.data.length > 0) {
-        setStudents(res.data.data);
+      if (res.data && res.data.success) {
+        setStudents(res.data.data || []);
       } else {
-        setStudents(getFallbackStudents(classId));
+        setStudents([]);
       }
     } catch (err) {
-      console.error(err);
-      setStudents(getFallbackStudents(classId));
+      console.error('Fetch students error:', err);
+      setStudents([]);
     }
   };
 
   const fetchInvoices = async (studentId) => {
+    setInvoicesLoading(true);
     try {
       const res = await api.get(`/invoices?student_id=${studentId}`);
-      if (res.data.success) {
-        setInvoices(res.data.data);
+      if (res.data && res.data.success) {
+        setInvoices(res.data.data || []);
+      } else {
+        setInvoices([]);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch invoices error:', err);
       setInvoices([]);
+    } finally {
+      setInvoicesLoading(false);
     }
   };
 
@@ -259,30 +182,32 @@ export default function CashierPOS() {
       if (historySearch) url += `&search=${historySearch}`;
 
       const res = await api.get(url);
-      if (res.data.success) {
-        setPaymentHistory(res.data.data);
+      if (res.data && res.data.success) {
+        const historyData = res.data.data || [];
+        setPaymentHistory(historyData);
 
-        // Compute summary metrics
+        // Compute summary metrics with safe Number parsing
         let totalAmount = 0;
         let totalCash = 0;
         let totalNonCash = 0;
-        res.data.data.forEach(p => {
-          totalAmount += p.amount;
+        historyData.forEach(p => {
+          const amt = Number(p.amount) || 0;
+          totalAmount += amt;
           if (p.payment_method === 'Cash' || p.payment_method === 'Tunai') {
-            totalCash += p.amount;
+            totalCash += amt;
           } else {
-            totalNonCash += p.amount;
+            totalNonCash += amt;
           }
         });
         setHistorySummary({
           totalAmount,
           totalCash,
           totalNonCash,
-          totalCount: res.data.data.length
+          totalCount: historyData.length
         });
       }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch payment history error:', err);
     } finally {
       setHistoryLoading(false);
     }
@@ -294,6 +219,7 @@ export default function CashierPOS() {
     setSelectedClass(null);
     setSelectedStudent(null);
     setSelectedInvoices([]);
+    setInvoices([]);
     fetchClasses(unit.id);
     setStep(2);
   };
@@ -302,6 +228,7 @@ export default function CashierPOS() {
     setSelectedClass(cls);
     setSelectedStudent(null);
     setSelectedInvoices([]);
+    setInvoices([]);
     fetchStudents(cls.id);
     setStep(3);
   };
@@ -309,6 +236,7 @@ export default function CashierPOS() {
   const handleSelectStudent = (student) => {
     setSelectedStudent(student);
     setSelectedInvoices([]);
+    setInvoices([]);
     fetchInvoices(student.id);
     setStep(4);
   };
@@ -325,24 +253,30 @@ export default function CashierPOS() {
     setNotes('');
   };
 
-  // Toggle invoice checkbox selection
+  // Toggle invoice checkbox selection with duplicate prevention
   const handleToggleInvoiceSelection = (inv) => {
-    const isSelected = selectedInvoices.some(i => i.id === inv.id);
+    const isSelected = selectedInvoices.some(i => 
+      i.id === inv.id || 
+      (inv.month_period && inv.month_period !== 'Tahunan' && i.month_period === inv.month_period && i.post_name === inv.post_name)
+    );
     if (isSelected) {
-      setSelectedInvoices(selectedInvoices.filter(i => i.id !== inv.id));
+      setSelectedInvoices(prev => prev.filter(i => 
+        i.id !== inv.id && 
+        !(inv.month_period && inv.month_period !== 'Tahunan' && i.month_period === inv.month_period && i.post_name === inv.post_name)
+      ));
     } else {
-      setSelectedInvoices([...selectedInvoices, inv]);
+      setSelectedInvoices(prev => [...prev, inv]);
     }
   };
 
   const handleSelectAllSppInvoices = () => {
     const unpaidSppInvoices = invoices.filter(inv => {
       const isSpp = (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-');
-      const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
-      return isSpp && remaining > 0;
+      const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
+      return isSpp && remaining > 0 && inv.status !== 'Lunas';
     });
 
-    if (selectedInvoices.length === unpaidSppInvoices.length) {
+    if (selectedInvoices.length >= unpaidSppInvoices.length && unpaidSppInvoices.length > 0) {
       setSelectedInvoices([]);
     } else {
       setSelectedInvoices(unpaidSppInvoices);
@@ -389,24 +323,14 @@ export default function CashierPOS() {
         notes: notes || `Pembayaran ${selectedInvoices.length} Tagihan oleh Kasir POS`
       });
 
+      if (!res.data || !res.data.success) {
+        throw new Error(res.data?.error || 'Pembayaran gagal diproses ke database');
+      }
+
       const actualReceiptNum = res.data?.receipt_number || res.data?.data?.receipt_number || res.data?.transaction_number || defaultReceiptNum;
 
-      const newRecord = {
-        id: res.data?.payment_id || Date.now(),
-        receipt_number: actualReceiptNum,
-        student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
-        nis: selectedStudent?.nis || '2026021001',
-        class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
-        unit_name: selectedUnit?.name || 'SDIT Cendekia',
-        post_name: selectedInvoices.map(i => i.post_name).join(', ') || 'Biaya Pendidikan / SPP',
-        amount: amountNum,
-        payment_method: payMethod,
-        payment_date: new Date().toISOString(),
-        cashier_name: 'Ust. Hendra (Kasir Utama)',
-        status: 'Paid'
-      };
-
-      setPaymentHistory(prev => [newRecord, ...prev]);
+      // Immediately refresh real payment history from DB
+      fetchPaymentHistory();
 
       setSuccessModal({
         payment: { amount: amountNum },
@@ -425,38 +349,8 @@ export default function CashierPOS() {
       setNotes('');
     } catch (err) {
       console.error('POS Payment Error:', err);
-
-      const fallbackRecord = {
-        id: Date.now(),
-        receipt_number: defaultReceiptNum,
-        student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
-        nis: selectedStudent?.nis || '2026021001',
-        class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
-        unit_name: selectedUnit?.name || 'SDIT Cendekia',
-        post_name: selectedInvoices.map(i => i.post_name).join(', ') || 'Biaya Pendidikan / SPP',
-        amount: amountNum,
-        payment_method: payMethod,
-        payment_date: new Date().toISOString(),
-        cashier_name: 'Ust. Hendra (Kasir Utama)',
-        status: 'Paid'
-      };
-
-      setPaymentHistory(prev => [fallbackRecord, ...prev]);
-
-      setSuccessModal({
-        payment: { amount: amountNum },
-        receipt_number: defaultReceiptNum,
-        change: changeAmount,
-        itemsCount: selectedInvoices.length,
-        student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
-        class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
-        unit_name: selectedUnit?.name || 'SDIT Cendekia'
-      });
-
-      setSelectedInvoices([]);
-      setPayAmount('');
-      setCashReceived('');
-      setNotes('');
+      const errMsg = err.response?.data?.error || err.message || 'Pembayaran gagal diproses ke database';
+      alert('⚠️ Gagal Memproses Pembayaran: ' + errMsg);
     } finally {
       setLoading(false);
     }
@@ -750,129 +644,86 @@ export default function CashierPOS() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {(() => {
-                      const getFallbackInvoicesForStudent = (student) => {
-                        if (!student) return [];
-                        const sppMonths = [
-                          { code: '2026-07', label: 'Juli 2026' },
-                          { code: '2026-08', label: 'Agustus 2026' },
-                          { code: '2026-09', label: 'September 2026' },
-                          { code: '2026-10', label: 'Oktober 2026' },
-                          { code: '2026-11', label: 'November 2026' },
-                          { code: '2026-12', label: 'Desember 2026' },
-                          { code: '2027-01', label: 'Januari 2027' },
-                          { code: '2027-02', label: 'Februari 2027' },
-                          { code: '2027-03', label: 'Maret 2027' },
-                          { code: '2027-04', label: 'April 2027' },
-                          { code: '2027-05', label: 'Mei 2027' },
-                          { code: '2027-06', label: 'Juni 2027' }
-                        ];
+                  {invoicesLoading ? (
+                    <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="font-bold">Memuat Tagihan Siswa dari Database...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {(() => {
+                        const sppList = (invoices || []).filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'));
 
-                        const fallbackList = [];
-                        sppMonths.forEach((m, idx) => {
-                          fallbackList.push({
-                            id: 1000 + idx,
-                            invoice_number: `INV/SPP/${student.nis}/${m.code.replace('-', '')}`,
-                            student_id: student.id,
-                            post_name: 'Biaya Pendidikan / SPP',
-                            month_period: m.code,
-                            nominal: 500000,
-                            discount_amount: 0,
-                            paid_amount: idx === 0 ? 500000 : 0,
-                            status: idx === 0 ? 'Lunas' : 'Belum Dibayar'
-                          });
-                        });
+                        if (sppList.length === 0) {
+                          return (
+                            <div className="col-span-full py-6 text-center text-slate-400 text-xs">
+                              Tidak ada tagihan SPP untuk siswa ini.
+                            </div>
+                          );
+                        }
 
-                        const nonSppItems = [
-                          { id: 2001, name: 'Infaq Pembangunan SDIT', nominal: 4500000, paid: 1500000, status: 'Sebagian' },
-                          { id: 2002, name: 'Seragam & Atribut Sekolah', nominal: 1200000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2003, name: 'Buku Paket & LKS (Tahunan)', nominal: 850000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2004, name: 'Kegiatan Outing & Rihlah', nominal: 450000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2005, name: 'Komite Sekolah & Majelis', nominal: 150000, paid: 0, status: 'Belum Dibayar' }
-                        ];
+                        return sppList.map((inv) => {
+                          const isSelected = selectedInvoices.some(i => i.id === inv.id || (inv.month_period && i.month_period === inv.month_period && i.post_name === inv.post_name));
+                          const statusStr = String(inv.status || 'Belum Dibayar');
+                          const isPaid = statusStr === 'Lunas';
+                          const nominal = Number(inv.nominal || 500000);
+                          const discount = Number(inv.discount_amount || 0);
+                          const paid = Number(inv.paid_amount || 0);
+                          const remaining = Math.max(0, nominal - discount - paid);
 
-                        nonSppItems.forEach((item) => {
-                          fallbackList.push({
-                            id: item.id,
-                            invoice_number: `INV/${item.name.replace(/\s+/g, '')}/${student.nis}/2026`,
-                            student_id: student.id,
-                            post_name: item.name,
-                            month_period: 'Tahunan',
-                            nominal: item.nominal,
-                            discount_amount: 0,
-                            paid_amount: item.paid,
-                            status: item.status
-                          });
-                        });
-
-                        return fallbackList;
-                      };
-
-                      const currentInvoices = (invoices && invoices.length > 0) ? invoices : getFallbackInvoicesForStudent(selectedStudent);
-                      const sppList = currentInvoices.filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'));
-
-                      return sppList.map((inv) => {
-                        const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                        const statusStr = String(inv.status || 'Belum Dibayar');
-                        const isPaid = statusStr === 'Lunas';
-                        const nominal = Number(inv.nominal || 500000);
-                        const discount = Number(inv.discount_amount || 0);
-                        const paid = Number(inv.paid_amount || 0);
-                        const remaining = Math.max(0, nominal - discount - paid);
-
-                        return (
-                          <div
-                            key={inv.id}
-                            onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
-                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
-                              isPaid
-                                ? 'bg-emerald-50/50 border-emerald-200 opacity-80 cursor-not-allowed'
-                                : isSelected
-                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/30'
-                                : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                          return (
+                            <div
+                              key={inv.id}
+                              onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
+                              className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
                                 isPaid
-                                  ? 'bg-emerald-200 text-emerald-800'
+                                  ? 'bg-emerald-50/50 border-emerald-200 opacity-80 cursor-not-allowed'
                                   : isSelected
-                                  ? 'bg-white/20 text-white'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                {monthLabels[inv.month_period] || inv.month_period}
-                              </span>
-                              {isSelected ? (
-                                <CheckCircle2 className="w-4 h-4 text-white" />
-                              ) : isPaid ? (
-                                <Check className="w-4 h-4 text-emerald-600" />
-                              ) : (
-                                <Square className="w-4 h-4 text-slate-300" />
-                              )}
-                            </div>
+                                  ? 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/30'
+                                  : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                  isPaid
+                                    ? 'bg-emerald-200 text-emerald-800'
+                                    : isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {monthLabels[inv.month_period] || inv.month_period}
+                                </span>
+                                {isSelected ? (
+                                  <CheckCircle2 className="w-4 h-4 text-white" />
+                                ) : isPaid ? (
+                                  <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-slate-300" />
+                                )}
+                              </div>
 
-                            <div>
-                              <p className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>
-                                Rp {remaining.toLocaleString('id-ID')}
-                              </p>
-                              {discount > 0 && (
-                                <p className={`text-[9px] ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
-                                  Disc: -Rp {discount.toLocaleString('id-ID')}
+                              <div>
+                                <p className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                  Rp {remaining.toLocaleString('id-ID')}
                                 </p>
-                              )}
-                            </div>
+                                {discount > 0 && (
+                                  <p className={`text-[9px] ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                                    Disc: -Rp {discount.toLocaleString('id-ID')}
+                                  </p>
+                                )}
+                              </div>
 
-                            <div className="text-[9px] font-bold">
-                              <span className={isPaid ? 'text-emerald-700' : isSelected ? 'text-emerald-100' : 'text-rose-600'}>
-                                {isPaid ? '✓ LUNAS' : `STATUS: ${statusStr.toUpperCase()}`}
-                              </span>
+                              <div className="text-[9px] font-bold">
+                                <span className={isPaid ? 'text-emerald-700' : isSelected ? 'text-emerald-100' : 'text-rose-600'}>
+                                  {isPaid ? '✓ LUNAS' : `STATUS: ${statusStr.toUpperCase()}`}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {/* PART 2: NON-SPP INVOICES (Infaq, Seragam, Perlengkapan, Outing, Ekskul, Komite) */}
@@ -887,87 +738,78 @@ export default function CashierPOS() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(() => {
-                      const getFallbackInvoicesForStudent = (student) => {
-                        if (!student) return [];
-                        const nonSppItems = [
-                          { id: 2001, name: 'Infaq Pembangunan SDIT', nominal: 4500000, paid: 1500000, status: 'Sebagian' },
-                          { id: 2002, name: 'Seragam & Atribut Sekolah', nominal: 1200000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2003, name: 'Buku Paket & LKS (Tahunan)', nominal: 850000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2004, name: 'Kegiatan Outing & Rihlah', nominal: 450000, paid: 0, status: 'Belum Dibayar' },
-                          { id: 2005, name: 'Komite Sekolah & Majelis', nominal: 150000, paid: 0, status: 'Belum Dibayar' }
-                        ];
+                  {invoicesLoading ? (
+                    <div className="py-8 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+                      <div className="w-6 h-6 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Memuat Pos Non-SPP...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {(() => {
+                        const nonSppList = (invoices || []).filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')));
 
-                        return nonSppItems.map(item => ({
-                          id: item.id,
-                          invoice_number: `INV/${item.name.replace(/\s+/g, '')}/${student.nis}/2026`,
-                          student_id: student.id,
-                          post_name: item.name,
-                          month_period: 'Tahunan',
-                          nominal: item.nominal,
-                          discount_amount: 0,
-                          paid_amount: item.paid,
-                          status: item.status
-                        }));
-                      };
+                        if (nonSppList.length === 0) {
+                          return (
+                            <div className="col-span-full py-6 text-center text-slate-400 text-xs">
+                              Tidak ada tagihan Non-SPP untuk siswa ini.
+                            </div>
+                          );
+                        }
 
-                      const currentInvoices = (invoices && invoices.length > 0) ? invoices : getFallbackInvoicesForStudent(selectedStudent);
-                      const nonSppList = currentInvoices.filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')));
+                        return nonSppList.map((inv) => {
+                          const isSelected = selectedInvoices.some(i => i.id === inv.id || (inv.month_period && inv.month_period !== 'Tahunan' && i.month_period === inv.month_period && i.post_name === inv.post_name));
+                          const statusStr = String(inv.status || 'Belum Dibayar');
+                          const isPaid = statusStr === 'Lunas';
+                          const nominal = Number(inv.nominal || 0);
+                          const discount = Number(inv.discount_amount || 0);
+                          const paid = Number(inv.paid_amount || 0);
+                          const remaining = Math.max(0, nominal - discount - paid);
 
-                      return nonSppList.map((inv) => {
-                        const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                        const statusStr = String(inv.status || 'Belum Dibayar');
-                        const isPaid = statusStr === 'Lunas';
-                        const nominal = Number(inv.nominal || 0);
-                        const discount = Number(inv.discount_amount || 0);
-                        const paid = Number(inv.paid_amount || 0);
-                        const remaining = Math.max(0, nominal - discount - paid);
+                          return (
+                            <div
+                              key={inv.id}
+                              onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
+                              className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                                isPaid
+                                  ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                                  : 'bg-white border-slate-200 hover:border-amber-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">
+                                  {inv.post_name}
+                                </span>
+                                {isSelected ? (
+                                  <CheckCircle2 className="w-5 h-5 text-amber-600" />
+                                ) : isPaid ? (
+                                  <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                  <Square className="w-5 h-5 text-slate-300" />
+                                )}
+                              </div>
 
-                        return (
-                          <div
-                            key={inv.id}
-                            onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
-                            className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                              isPaid
-                                ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
-                                : isSelected
-                                ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
-                                : 'bg-white border-slate-200 hover:border-amber-300'
-                            }`}
-                          >
-                          <div className="flex items-center justify-between">
-                            <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">
-                              {inv.post_name}
-                            </span>
-                            {isSelected ? (
-                              <CheckCircle2 className="w-5 h-5 text-amber-600" />
-                            ) : isPaid ? (
-                              <Check className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                              <Square className="w-5 h-5 text-slate-300" />
-                            )}
-                          </div>
+                              <div className="flex items-center justify-between text-xs pt-1">
+                                <span className="text-slate-500">Nominal Tagihan:</span>
+                                <span className="font-bold text-slate-800">Rp {nominal.toLocaleString('id-ID')}</span>
+                              </div>
 
-                          <div className="flex items-center justify-between text-xs pt-1">
-                            <span className="text-slate-500">Nominal Tagihan:</span>
-                            <span className="font-bold text-slate-800">Rp {nominal.toLocaleString('id-ID')}</span>
-                          </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500">Sudah Dibayar:</span>
+                                <span className="font-bold text-emerald-700">Rp {paid.toLocaleString('id-ID')}</span>
+                              </div>
 
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-500">Sudah Dibayar:</span>
-                            <span className="font-bold text-emerald-700">Rp {paid.toLocaleString('id-ID')}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
-                            <span className="text-slate-500 font-bold">Sisa Tagihan:</span>
-                            <span className="font-black text-amber-700 text-sm">Rp {remaining.toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                                <span className="text-slate-500 font-bold">Sisa Tagihan:</span>
+                                <span className="font-black text-amber-700 text-sm">Rp {remaining.toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1226,74 +1068,43 @@ export default function CashierPOS() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                    {(paymentHistory.length > 0 ? paymentHistory : [
-                      {
-                        id: 101,
-                        receipt_number: 'KW/2026/08/04128',
-                        student_name: 'Muhammad Ali Rayyan',
-                        nis: '2026021001',
-                        class_name: 'Kelas 1 Abu Bakar',
-                        unit_name: 'SDIT Cendekia',
-                        post_name: 'Biaya Pendidikan / SPP SDIT (Agustus 2026)',
-                        amount: 500000,
-                        payment_method: 'Cash',
-                        payment_date: new Date().toISOString(),
-                        cashier_name: 'Ust. Hendra (Kasir Utama)',
-                        status: 'Paid'
-                      },
-                      {
-                        id: 102,
-                        receipt_number: 'KW/2026/08/04127',
-                        student_name: 'Hamzah Abdul Jabbar',
-                        nis: '2026022001',
-                        class_name: 'Kelas 1 Umar',
-                        unit_name: 'SDIT Cendekia',
-                        post_name: 'Infaq Pembangunan SDIT (Angsuran 1)',
-                        amount: 1500000,
-                        payment_method: 'Transfer',
-                        payment_date: new Date(Date.now() - 3600000 * 2).toISOString(),
-                        cashier_name: 'Ust. Hendra (Kasir Utama)',
-                        status: 'Paid'
-                      },
-                      {
-                        id: 103,
-                        receipt_number: 'KW/2026/08/04126',
-                        student_name: 'Fatimah Az-Zahra Subagyo',
-                        nis: '2026023001',
-                        class_name: 'Kelas 2 Utsman',
-                        unit_name: 'SDIT Cendekia',
-                        post_name: 'Biaya Pendidikan / SPP SDIT (Agustus 2026)',
-                        amount: 500000,
-                        payment_method: 'QRIS',
-                        payment_date: new Date(Date.now() - 3600000 * 5).toISOString(),
-                        cashier_name: 'Portal Ortu Online',
-                        status: 'Paid'
-                      }
-                    ]).map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{p.receipt_number}</td>
-                        <td className="py-3.5 px-4 text-slate-500">
-                          {new Date(p.payment_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-800">{p.student_name}</td>
-                        <td className="py-3.5 px-4">{p.post_name}</td>
-                        <td className="py-3.5 px-4 font-extrabold text-emerald-700">Rp {p.amount.toLocaleString('id-ID')}</td>
-                        <td className="py-3.5 px-4">
-                          <span className="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-[10px]">
-                            {p.payment_method}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => navigate(`/kwitansi/${p.receipt_number}`)}
-                            className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 text-xs inline-flex items-center gap-1"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Cetak</span>
-                          </button>
+                    {paymentHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="py-8 text-center text-slate-400 font-medium">
+                          Belum ada data riwayat transaksi pembayaran pada periode/filter ini.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paymentHistory.map((p) => {
+                        const recNum = p.receipt_number || p.transaction_number || '-';
+                        const pAmount = Number(p.amount || 0);
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-slate-900">{recNum}</td>
+                            <td className="py-3.5 px-4 text-slate-500">
+                              {p.payment_date ? new Date(p.payment_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-slate-800">{p.student_name || 'Siswa'}</td>
+                            <td className="py-3.5 px-4">{p.post_name || 'Biaya Pendidikan'}</td>
+                            <td className="py-3.5 px-4 font-extrabold text-emerald-700">Rp {pAmount.toLocaleString('id-ID')}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                {p.payment_method || 'Cash'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                onClick={() => navigate(`/kwitansi/${recNum}`)}
+                                className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 text-xs inline-flex items-center gap-1"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Cetak</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -128,16 +128,14 @@ router.get('/student-ledger/:student_id', verifyToken, async (req, res) => {
 router.get('/by-post', verifyToken, async (req, res) => {
   try {
     const rows = await query(`
-      SELECT pp.id, pp.code, pp.name as post_name, pp.type as post_type, u.name as unit_name,
-             COUNT(i.id) as total_invoices,
-             SUM(i.nominal) as total_nominal,
-             SUM(i.discount_amount) as total_discount,
+      SELECT pp.id, pp.name as post_name, pp.code, pp.type, u.name as unit_name,
+             SUM(i.nominal) as total_target,
              SUM(i.paid_amount) as total_paid,
              SUM(i.nominal - i.discount_amount - i.paid_amount) as total_piutang
       FROM payment_posts pp
       LEFT JOIN units u ON pp.unit_id = u.id
       LEFT JOIN invoices i ON i.post_id = pp.id
-      GROUP BY pp.id
+      GROUP BY pp.id, pp.name, pp.code, pp.type, u.name, pp.sort_order
       ORDER BY pp.sort_order ASC
     `);
 
@@ -159,7 +157,7 @@ router.get('/by-class', verifyToken, async (req, res) => {
       JOIN units u ON c.unit_id = u.id
       LEFT JOIN students s ON s.class_id = c.id
       LEFT JOIN invoices i ON i.student_id = s.id
-      GROUP BY c.id
+      GROUP BY c.id, c.name, u.name, c.unit_id
       ORDER BY c.unit_id ASC, c.name ASC
     `);
 

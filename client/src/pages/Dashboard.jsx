@@ -23,6 +23,11 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
+const formatRupiah = (val) => {
+  const num = Number(val) || 0;
+  return `Rp ${Math.round(num).toLocaleString('id-ID')}`;
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -116,14 +121,14 @@ export default function Dashboard() {
           <div className="mt-3">
             <h2 className="text-2xl font-extrabold tracking-tight">
               {isAdminOrSuperAdmin 
-                ? `Rp ${(metrics.totalCash || 0).toLocaleString('id-ID')}`
-                : `Rp ${(cashierCash.today || 0).toLocaleString('id-ID')}`}
+                ? formatRupiah(metrics.totalCash)
+                : formatRupiah(cashierCash.today)}
             </h2>
             <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-emerald-100 font-medium">
               {isAdminOrSuperAdmin ? (
                 <>
-                  <span>Kas Kasir: Rp {(metrics.mainCashBalance || 0).toLocaleString('id-ID')}</span>
-                  <span>BCA/BSI: Rp {((metrics.bankBcaBalance || 0) + (metrics.bankBsiBalance || 0)).toLocaleString('id-ID')}</span>
+                  <span>Kas Kasir: {formatRupiah(metrics.mainCashBalance)}</span>
+                  <span>BCA/BSI: {formatRupiah(Number(metrics.bankBcaBalance || 0) + Number(metrics.bankBsiBalance || 0))}</span>
                 </>
               ) : (
                 <span>{cashierCash.todayCount || 0} Transaksi Tunai Diterima Hari Ini</span>
@@ -141,10 +146,10 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <h2 className="text-2xl font-bold text-slate-800">Rp {(metrics.todayIncome || 0).toLocaleString('id-ID')}</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{formatRupiah(metrics.todayIncome)}</h2>
             <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>Pendapatan Bulan Ini: Rp {(metrics.monthIncome || 0).toLocaleString('id-ID')}</span>
+              <span>Pendapatan Bulan Ini: {formatRupiah(metrics.monthIncome)}</span>
             </div>
           </div>
         </div>
@@ -162,7 +167,7 @@ export default function Dashboard() {
           <div className="mt-3">
             {isAdminOrSuperAdmin ? (
               <>
-                <h2 className="text-2xl font-bold text-slate-800">Rp {(metrics.todayExpense || 0).toLocaleString('id-ID')}</h2>
+                <h2 className="text-2xl font-bold text-slate-800">{formatRupiah(metrics.todayExpense)}</h2>
                 <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                   <Building className="w-3.5 h-3.5" />
                   <span>Beban Operasional Sekolah</span>
@@ -189,7 +194,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <h2 className="text-2xl font-bold text-amber-900">Rp {(metrics.totalPiutang || 0).toLocaleString('id-ID')}</h2>
+            <h2 className="text-2xl font-bold text-amber-900">{formatRupiah(metrics.totalPiutang)}</h2>
             <div className="mt-3 flex items-center justify-between text-xs text-amber-700 font-medium">
               <span>{metrics.activeStudents || 0} Siswa Aktif</span>
               <span>{metrics.totalTransactions || 0} Transaksi</span>
@@ -214,7 +219,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-                Total Kasir: Rp {(cashierCash.total || 0).toLocaleString('id-ID')} ({cashierCash.totalCount} Txn)
+                Total Kasir: {formatRupiah(cashierCash.total)} ({cashierCash.totalCount || 0} Txn)
               </span>
             </div>
 
@@ -225,10 +230,10 @@ export default function Dashboard() {
                     <Clock className="w-4 h-4 text-emerald-600" />
                     Tunai Hari Ini
                   </span>
-                  <span className="text-[11px] text-emerald-700 bg-emerald-200/60 px-2 py-0.5 rounded">{cashierCash.todayCount} Txn</span>
+                  <span className="text-[11px] text-emerald-700 bg-emerald-200/60 px-2 py-0.5 rounded">{cashierCash.todayCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-emerald-950">
-                  Rp {(cashierCash.today || 0).toLocaleString('id-ID')}
+                  {formatRupiah(cashierCash.today)}
                 </h3>
                 <p className="text-[11px] text-emerald-700">Diterima hari ini via Kasir</p>
               </div>
@@ -239,10 +244,10 @@ export default function Dashboard() {
                     <Calendar className="w-4 h-4 text-teal-600" />
                     Tunai Pekan Ini (7 Hari)
                   </span>
-                  <span className="text-[11px] text-teal-700 bg-teal-200/60 px-2 py-0.5 rounded">{cashierCash.weekCount} Txn</span>
+                  <span className="text-[11px] text-teal-700 bg-teal-200/60 px-2 py-0.5 rounded">{cashierCash.weekCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-teal-950">
-                  Rp {(cashierCash.week || 0).toLocaleString('id-ID')}
+                  {formatRupiah(cashierCash.week)}
                 </h3>
                 <p className="text-[11px] text-teal-700">Akumulasi 7 hari terakhir</p>
               </div>
@@ -253,10 +258,10 @@ export default function Dashboard() {
                     <TrendingUp className="w-4 h-4 text-emerald-700" />
                     Tunai Bulan Ini
                   </span>
-                  <span className="text-[11px] text-emerald-800 bg-emerald-300/60 px-2 py-0.5 rounded">{cashierCash.monthCount} Txn</span>
+                  <span className="text-[11px] text-emerald-800 bg-emerald-300/60 px-2 py-0.5 rounded">{cashierCash.monthCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-emerald-950">
-                  Rp {(cashierCash.month || 0).toLocaleString('id-ID')}
+                  {formatRupiah(cashierCash.month)}
                 </h3>
                 <p className="text-[11px] text-emerald-700">Akumulasi bulan berjalan</p>
               </div>
@@ -276,7 +281,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <span className="text-xs font-bold text-blue-800 bg-blue-100 px-3 py-1 rounded-full">
-                Total Transfer: Rp {(transferBank.total || 0).toLocaleString('id-ID')} ({transferBank.totalCount} Txn)
+                Total Transfer: {formatRupiah(transferBank.total)} ({transferBank.totalCount || 0} Txn)
               </span>
             </div>
 
@@ -287,10 +292,10 @@ export default function Dashboard() {
                     <Clock className="w-4 h-4 text-blue-600" />
                     Transfer Hari Ini
                   </span>
-                  <span className="text-[11px] text-blue-700 bg-blue-200/60 px-2 py-0.5 rounded">{transferBank.todayCount} Txn</span>
+                  <span className="text-[11px] text-blue-700 bg-blue-200/60 px-2 py-0.5 rounded">{transferBank.todayCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-blue-950">
-                  Rp {(transferBank.today || 0).toLocaleString('id-ID')}
+                  {formatRupiah(transferBank.today)}
                 </h3>
                 <p className="text-[11px] text-blue-700">Transfer masuk hari ini</p>
               </div>
@@ -301,10 +306,10 @@ export default function Dashboard() {
                     <Calendar className="w-4 h-4 text-indigo-600" />
                     Transfer Pekan Ini (7 Hari)
                   </span>
-                  <span className="text-[11px] text-indigo-700 bg-indigo-200/60 px-2 py-0.5 rounded">{transferBank.weekCount} Txn</span>
+                  <span className="text-[11px] text-indigo-700 bg-indigo-200/60 px-2 py-0.5 rounded">{transferBank.weekCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-indigo-950">
-                  Rp {(transferBank.week || 0).toLocaleString('id-ID')}
+                  {formatRupiah(transferBank.week)}
                 </h3>
                 <p className="text-[11px] text-indigo-700">Akumulasi 7 hari terakhir</p>
               </div>
@@ -315,10 +320,10 @@ export default function Dashboard() {
                     <TrendingUp className="w-4 h-4 text-sky-700" />
                     Transfer Bulan Ini
                   </span>
-                  <span className="text-[11px] text-sky-800 bg-sky-300/60 px-2 py-0.5 rounded">{transferBank.monthCount} Txn</span>
+                  <span className="text-[11px] text-sky-800 bg-sky-300/60 px-2 py-0.5 rounded">{transferBank.monthCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-sky-950">
-                  Rp {(transferBank.month || 0).toLocaleString('id-ID')}
+                  {formatRupiah(transferBank.month)}
                 </h3>
                 <p className="text-[11px] text-sky-700">Akumulasi bulan berjalan</p>
               </div>
@@ -338,7 +343,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <span className="text-xs font-bold text-violet-800 bg-violet-100 px-3 py-1 rounded-full">
-                Total Gateway: Rp {(paymentGateway.total || 0).toLocaleString('id-ID')} ({paymentGateway.totalCount} Txn)
+                Total Gateway: {formatRupiah(paymentGateway.total)} ({paymentGateway.totalCount || 0} Txn)
               </span>
             </div>
 
@@ -349,10 +354,10 @@ export default function Dashboard() {
                     <Clock className="w-4 h-4 text-violet-600" />
                     Gateway Hari Ini
                   </span>
-                  <span className="text-[11px] text-violet-700 bg-violet-200/60 px-2 py-0.5 rounded">{paymentGateway.todayCount} Txn</span>
+                  <span className="text-[11px] text-violet-700 bg-violet-200/60 px-2 py-0.5 rounded">{paymentGateway.todayCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-violet-950">
-                  Rp {(paymentGateway.today || 0).toLocaleString('id-ID')}
+                  {formatRupiah(paymentGateway.today)}
                 </h3>
                 <p className="text-[11px] text-violet-700">Diterima otomatis hari ini</p>
               </div>
@@ -363,10 +368,10 @@ export default function Dashboard() {
                     <Calendar className="w-4 h-4 text-purple-600" />
                     Gateway Pekan Ini (7 Hari)
                   </span>
-                  <span className="text-[11px] text-purple-700 bg-purple-200/60 px-2 py-0.5 rounded">{paymentGateway.weekCount} Txn</span>
+                  <span className="text-[11px] text-purple-700 bg-purple-200/60 px-2 py-0.5 rounded">{paymentGateway.weekCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-purple-950">
-                  Rp {(paymentGateway.week || 0).toLocaleString('id-ID')}
+                  {formatRupiah(paymentGateway.week)}
                 </h3>
                 <p className="text-[11px] text-purple-700">Akumulasi 7 hari terakhir</p>
               </div>
@@ -377,10 +382,10 @@ export default function Dashboard() {
                     <TrendingUp className="w-4 h-4 text-violet-700" />
                     Gateway Bulan Ini
                   </span>
-                  <span className="text-[11px] text-violet-800 bg-violet-300/60 px-2 py-0.5 rounded">{paymentGateway.monthCount} Txn</span>
+                  <span className="text-[11px] text-violet-800 bg-violet-300/60 px-2 py-0.5 rounded">{paymentGateway.monthCount || 0} Txn</span>
                 </div>
                 <h3 className="text-2xl font-extrabold text-violet-950">
-                  Rp {(paymentGateway.month || 0).toLocaleString('id-ID')}
+                  {formatRupiah(paymentGateway.month)}
                 </h3>
                 <p className="text-[11px] text-violet-700">Akumulasi bulan berjalan</p>
               </div>
@@ -432,7 +437,7 @@ export default function Dashboard() {
                 <div key={idx} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs font-semibold">
                     <span className="text-slate-700 truncate max-w-[180px]">{post.name}</span>
-                    <span className="text-emerald-600">Rp {(post.total || 0).toLocaleString('id-ID')}</span>
+                    <span className="text-emerald-600 font-bold">{formatRupiah(post.total)}</span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div 

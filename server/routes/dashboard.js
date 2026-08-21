@@ -16,7 +16,11 @@ router.get('/metrics', verifyToken, async (req, res) => {
     }
     const bankBca = await get(`SELECT balance FROM accounts WHERE code = '101.02'`);
     const bankBsi = await get(`SELECT balance FROM accounts WHERE code = '101.03'`);
-    const totalCashBalance = (mainCash?.balance || 0) + (bankBca?.balance || 0) + (bankBsi?.balance || 0);
+    
+    const mainCashNum = Number(mainCash?.balance || 0);
+    const bankBcaNum = Number(bankBca?.balance || 0);
+    const bankBsiNum = Number(bankBsi?.balance || 0);
+    const totalCashBalance = mainCashNum + bankBcaNum + bankBsiNum;
 
     // 2. Today's Overall Income & Expense
     const todayIncomeRes = await get(
@@ -66,20 +70,24 @@ router.get('/metrics', verifyToken, async (req, res) => {
       { month: 'Mei 26', income: 48000000, expense: 19500000 },
       { month: 'Jun 26', income: 52000000, expense: 25000000 },
       { month: 'Jul 26', income: 68500000, expense: 32000000 },
-      { month: 'Agu 26', income: 74200000, expense: 27550000 }
+      { month: 'Agu 26', income: Number(monthIncomeRes?.total || 74200000), expense: 27550000 }
     ];
 
     // 10. Top Pos Pembayaran Distribution
-    const topPosts = await query(`
+    const topPostsRaw = await query(`
       SELECT pp.name, SUM(p.amount) as total
       FROM payments p
       JOIN invoices i ON p.invoice_id = i.id
       JOIN payment_posts pp ON i.post_id = pp.id
       WHERE p.status = 'Paid'
-      GROUP BY pp.id
+      GROUP BY pp.id, pp.name
       ORDER BY total DESC
       LIMIT 5
     `);
+    const topPosts = (topPostsRaw || []).map(p => ({
+      name: p.name,
+      total: Number(p.total || 0)
+    }));
 
     // 11. SPP Collection Rate (Lunas vs Belum Lunas)
     const sppPaid = await get(`SELECT COUNT(*) as count FROM invoices WHERE status = 'Lunas'`);
@@ -89,54 +97,54 @@ router.get('/metrics', verifyToken, async (req, res) => {
       success: true,
       metrics: {
         totalCash: totalCashBalance,
-        todayIncome: todayIncomeRes?.total || 0,
-        todayExpense: todayExpenseRes?.total || 0,
-        monthIncome: monthIncomeRes?.total || 74200000,
-        totalPiutang: piutangRes?.total || 0,
-        activeStudents: studentsRes?.total || 0,
-        totalTransactions: txnCountRes?.total || 0,
-        mainCashBalance: mainCash?.balance || 0,
-        bankBcaBalance: bankBca?.balance || 0,
-        bankBsiBalance: bankBsi?.balance || 0,
+        todayIncome: Number(todayIncomeRes?.total || 0),
+        todayExpense: Number(todayExpenseRes?.total || 0),
+        monthIncome: Number(monthIncomeRes?.total || 0),
+        totalPiutang: Number(piutangRes?.total || 0),
+        activeStudents: Number(studentsRes?.total || 0),
+        totalTransactions: Number(txnCountRes?.total || 0),
+        mainCashBalance: mainCashNum,
+        bankBcaBalance: bankBcaNum,
+        bankBsiBalance: bankBsiNum,
         
         // Detailed Income Breakdown for Admin Dashboard
         cashierCash: {
-          today: todayCashRes?.total || 0,
-          todayCount: todayCashRes?.count || 0,
-          week: weekCashRes?.total || 0,
-          weekCount: weekCashRes?.count || 0,
-          month: monthCashRes?.total || 0,
-          monthCount: monthCashRes?.count || 0,
-          total: totalCashRes?.total || 0,
-          totalCount: totalCashRes?.count || 0
+          today: Number(todayCashRes?.total || 0),
+          todayCount: Number(todayCashRes?.count || 0),
+          week: Number(weekCashRes?.total || 0),
+          weekCount: Number(weekCashRes?.count || 0),
+          month: Number(monthCashRes?.total || 0),
+          monthCount: Number(monthCashRes?.count || 0),
+          total: Number(totalCashRes?.total || 0),
+          totalCount: Number(totalCashRes?.count || 0)
         },
         transferBank: {
-          today: todayTransferRes?.total || 0,
-          todayCount: todayTransferRes?.count || 0,
-          week: weekTransferRes?.total || 0,
-          weekCount: weekTransferRes?.count || 0,
-          month: monthTransferRes?.total || 0,
-          monthCount: monthTransferRes?.count || 0,
-          total: totalTransferRes?.total || 0,
-          totalCount: totalTransferRes?.count || 0
+          today: Number(todayTransferRes?.total || 0),
+          todayCount: Number(todayTransferRes?.count || 0),
+          week: Number(weekTransferRes?.total || 0),
+          weekCount: Number(weekTransferRes?.count || 0),
+          month: Number(monthTransferRes?.total || 0),
+          monthCount: Number(monthTransferRes?.count || 0),
+          total: Number(totalTransferRes?.total || 0),
+          totalCount: Number(totalTransferRes?.count || 0)
         },
         paymentGateway: {
-          today: todayGatewayRes?.total || 0,
-          todayCount: todayGatewayRes?.count || 0,
-          week: weekGatewayRes?.total || 0,
-          weekCount: weekGatewayRes?.count || 0,
-          month: monthGatewayRes?.total || 0,
-          monthCount: monthGatewayRes?.count || 0,
-          total: totalGatewayRes?.total || 0,
-          totalCount: totalGatewayRes?.count || 0
+          today: Number(todayGatewayRes?.total || 0),
+          todayCount: Number(todayGatewayRes?.count || 0),
+          week: Number(weekGatewayRes?.total || 0),
+          weekCount: Number(weekGatewayRes?.count || 0),
+          month: Number(monthGatewayRes?.total || 0),
+          monthCount: Number(monthGatewayRes?.count || 0),
+          total: Number(totalGatewayRes?.total || 0),
+          totalCount: Number(totalGatewayRes?.count || 0)
         }
       },
       charts: {
         monthlyTrend,
         topPosts,
         sppStatus: [
-          { name: 'Lunas', value: sppPaid?.count || 0 },
-          { name: 'Belum Lunas', value: sppUnpaid?.count || 0 }
+          { name: 'Lunas', value: Number(sppPaid?.count || 0) },
+          { name: 'Belum Lunas', value: Number(sppUnpaid?.count || 0) }
         ]
       }
     });

@@ -23,6 +23,8 @@ const seedSupabaseData = async () => {
           `INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)`,
           u
         );
+      } else {
+        await run(`UPDATE users SET password = ? WHERE id = ?`, [defaultPassword, existing.id]);
       }
     }
     console.log('✅ Base users populated.');
@@ -137,16 +139,34 @@ const seedSupabaseData = async () => {
       }
     }
 
-    const cls1Umar = await get(`SELECT id FROM classes WHERE name LIKE '%Umar%'`);
+    const clsKB = await get(`SELECT id FROM classes WHERE name LIKE '%Kelompok Bermain%'`);
+    const clsTKA = await get(`SELECT id FROM classes WHERE name LIKE '%TK-A%'`);
+    const clsTKB = await get(`SELECT id FROM classes WHERE name LIKE '%TK-B%'`);
     const cls1AbuBakar = await get(`SELECT id FROM classes WHERE name LIKE '%Abu Bakar%'`);
+    const cls1Umar = await get(`SELECT id FROM classes WHERE name LIKE '%Umar%'`);
+    const cls2Utsman = await get(`SELECT id FROM classes WHERE name LIKE '%Utsman%'`);
+    const cls3Ali = await get(`SELECT id FROM classes WHERE name LIKE '%Ali%' AND unit_id = ?`, [sditId]);
 
     const studentsSample = [
+      // KBTK-IT Students
+      ['2026011001', '2026101', 'Rayyan Al-Farizi', 'L', 'Lamongan', '2022-03-10', kbtkId, clsKB?.id || 1, null],
+      ['2026011002', '2026102', 'Aisha Humaira', 'P', 'Lamongan', '2022-06-15', kbtkId, clsKB?.id || 1, null],
+      ['2026012001', '2026103', 'Bilal Abdul Rahman', 'L', 'Lamongan', '2021-02-20', kbtkId, clsTKA?.id || 2, null],
+      ['2026012002', '2026104', 'Maryam Salsabila', 'P', 'Lamongan', '2021-08-11', kbtkId, clsTKA?.id || 2, null],
+      ['2026013001', '2026105', 'Yusuf Al-Fatih', 'L', 'Lamongan', '2020-04-05', kbtkId, clsTKB?.id || 3, null],
+      ['2026013002', '2026106', 'Khadijah Azzahra', 'P', 'Lamongan', '2020-11-25', kbtkId, clsTKB?.id || 3, null],
+
+      // SDIT Students
       ['2026021001', '2026001', 'Muhammad Ali Rayyan', 'L', 'Lamongan', '2019-05-12', sditId, cls1AbuBakar?.id || 4, parentId],
       ['2026021002', '2026002', 'Khalifah Umar Al-Ghazi', 'L', 'Lamongan', '2019-06-18', sditId, cls1AbuBakar?.id || 4, null],
       ['2026021003', '2026003', 'Syakira Nabila', 'P', 'Lamongan', '2019-07-22', sditId, cls1AbuBakar?.id || 4, null],
       ['2026022001', '2026004', 'Hamzah Abdul Jabbar', 'L', 'Lamongan', '2019-04-10', sditId, cls1Umar?.id || 5, null],
       ['2026022002', '2026005', 'Zaskia Adya Mecca', 'P', 'Lamongan', '2019-08-15', sditId, cls1Umar?.id || 5, null],
-      ['2026022003', '2026006', 'Fathan Mubina', 'L', 'Lamongan', '2019-09-01', sditId, cls1Umar?.id || 5, null]
+      ['2026022003', '2026006', 'Fathan Mubina', 'L', 'Lamongan', '2019-09-01', sditId, cls1Umar?.id || 5, null],
+      ['2026023001', '2026007', 'Fatimah Az-Zahra Subagyo', 'P', 'Lamongan', '2018-03-21', sditId, cls2Utsman?.id || 6, null],
+      ['2026023002', '2026008', 'Zaid bin Tsabit', 'L', 'Lamongan', '2018-07-14', sditId, cls2Utsman?.id || 6, null],
+      ['2026024001', '2026009', 'Ibrahim Al-Khalil', 'L', 'Lamongan', '2017-02-19', sditId, cls3Ali?.id || 7, null],
+      ['2026024002', '2026010', 'Sarah Nur Aini', 'P', 'Lamongan', '2017-10-30', sditId, cls3Ali?.id || 7, null]
     ];
 
     for (const st of studentsSample) {
@@ -159,7 +179,60 @@ const seedSupabaseData = async () => {
         );
       }
     }
-    console.log('✅ Students sample data populated.');
+    console.log('✅ Students sample data populated for all 7 classes.');
+
+    // 9. Ensure 12-Month SPP & Non-SPP Invoices for all students
+    const AY_MONTHS = [
+      { code: '2026-07', due: '2026-07-10' },
+      { code: '2026-08', due: '2026-08-10' },
+      { code: '2026-09', due: '2026-09-10' },
+      { code: '2026-10', due: '2026-10-10' },
+      { code: '2026-11', due: '2026-11-10' },
+      { code: '2026-12', due: '2026-12-10' },
+      { code: '2027-01', due: '2027-01-10' },
+      { code: '2027-02', due: '2027-02-10' },
+      { code: '2027-03', due: '2027-03-10' },
+      { code: '2027-04', due: '2027-04-10' },
+      { code: '2027-05', due: '2027-05-10' },
+      { code: '2027-06', due: '2027-06-10' }
+    ];
+
+    const allStudents = await query(`SELECT id, nis, unit_id FROM students`);
+    const sppPostSdit = await get(`SELECT id, default_amount FROM payment_posts WHERE code = 'SPP-SDIT'`);
+    const sppPostKbtk = await get(`SELECT id, default_amount FROM payment_posts WHERE code = 'SPP-KBTK'`);
+
+    for (const s of allStudents) {
+      const sppPost = (s.unit_id === kbtkId ? sppPostKbtk : sppPostSdit) || sppPostSdit;
+      if (sppPost) {
+        const nominal = Number(sppPost.default_amount || 500000);
+        for (const m of AY_MONTHS) {
+          const invNum = `INV/SPP/${s.nis}/${m.code.replace('-', '')}`;
+          const existingInv = await get(`SELECT id FROM invoices WHERE student_id = ? AND post_id = ? AND month_period = ?`, [s.id, sppPost.id, m.code]);
+          if (!existingInv) {
+            await run(
+              `INSERT INTO invoices (invoice_number, student_id, post_id, academic_year_id, month_period, due_date, nominal, discount_amount, paid_amount, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'Belum Dibayar')`,
+              [invNum, s.id, sppPost.id, ayId || 1, m.code, m.due, nominal]
+            );
+          }
+        }
+      }
+
+      // Non-SPP posts
+      const nonSppPosts = await query(`SELECT id, code, type, default_amount FROM payment_posts WHERE code NOT LIKE '%SPP%'`);
+      for (const p of nonSppPosts) {
+        const invNum = `INV/${p.code}/${s.nis}/2026`;
+        const existingInv = await get(`SELECT id FROM invoices WHERE student_id = ? AND post_id = ?`, [s.id, p.id]);
+        if (!existingInv) {
+          await run(
+            `INSERT INTO invoices (invoice_number, student_id, post_id, academic_year_id, month_period, due_date, nominal, discount_amount, paid_amount, status)
+             VALUES (?, ?, ?, ?, ?, '2026-12-31', ?, 0, 0, 'Belum Dibayar')`,
+            [invNum, s.id, p.id, ayId || 1, p.type, Number(p.default_amount || 0)]
+          );
+        }
+      }
+    }
+    console.log('✅ Student invoices (12 months SPP + Non-SPP) populated for all students.');
     console.log('🎉 Supabase PostgreSQL Data Auto-Seeding Completed Successfully!');
   } catch (err) {
     console.error('Error during Supabase auto-seeding:', err);

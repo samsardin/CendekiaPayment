@@ -71,8 +71,8 @@ router.get('/', verifyToken, async (req, res) => {
     const payments = await query(sql, params);
 
     // Calculate Summary Metrics for the filtered payments
-    const totalAmount = payments.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0);
-    const totalCash = payments.filter(p => p.status === 'Paid' && (p.payment_method === 'Cash' || p.payment_method === 'Tunai')).reduce((acc, curr) => acc + curr.amount, 0);
+    const totalAmount = payments.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+    const totalCash = payments.filter(p => p.status === 'Paid' && (p.payment_method === 'Cash' || p.payment_method === 'Tunai')).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
     const totalNonCash = totalAmount - totalCash;
 
     res.json({
@@ -90,8 +90,49 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
+// Get specific receipt by Receipt Number or ID
+router.get('/receipt/:receipt_number(*)', verifyToken, async (req, res) => {
+  try {
+    const rawNumber = req.params.receipt_number;
+    const receiptNumber = decodeURIComponent(rawNumber || '').trim();
+
+    let sql = `
+      SELECT p.*, p.transaction_number as receipt_number,
+             COALESCE(s.name, 'Siswa Cendekia') as student_name, COALESCE(s.nis, '-') as nis, 
+             COALESCE(c.name, 'Kelas Utama') as class_name, COALESCE(u.name, 'SDIT Cendekia') as unit_name,
+             COALESCE(i.invoice_number, '-') as invoice_number, COALESCE(i.nominal, p.amount) as invoice_nominal, COALESCE(i.month_period, '-') as month_period,
+             COALESCE(pp.name, 'Biaya Pendidikan') as post_name,
+             COALESCE(usr.name, 'Kasir POS') as cashier_name
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id = i.id
+      LEFT JOIN students s ON p.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN units u ON s.unit_id = u.id
+      LEFT JOIN payment_posts pp ON i.post_id = pp.id
+      LEFT JOIN users usr ON p.cashier_id = usr.id
+      WHERE p.transaction_number = ? OR p.id = ?
+      ORDER BY p.id ASC
+    `;
+    const numericId = parseInt(receiptNumber) || -1;
+    const items = await query(sql, [receiptNumber, numericId]);
+
+    if (!items || items.length === 0) {
+      return res.status(404).json({ success: false, error: 'Kwitansi tidak ditemukan' });
+    }
+
+    const mainPayment = items[0];
+    res.json({
+      success: true,
+      data: mainPayment,
+      items: items
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Process New Payment (Supports Full & Installment/Angsuran Payments)
-router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'ortu'), async (req, res) => {
+router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'bendahara', 'ortu'), async (req, res) => {
   try {
     const { invoice_id, invoice_ids, amount, payment_method, notes, payment_gateway_ref } = req.body;
 
@@ -126,8 +167,8 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
         existingInv = await get(
           `SELECT i.*, s.name as student_name, s.nis, s.parent_id, pp.account_id, pp.name as post_name, p.phone as parent_phone, p.father_name
            FROM invoices i
-           JOIN students s ON i.student_id = s.id
-           JOIN payment_posts pp ON i.post_id = pp.id
+           LEFT JOIN students s ON i.student_id = s.id
+           LEFT JOIN payment_posts pp ON i.post_id = pp.id
            LEFT JOIN parents p ON s.parent_id = p.id
            WHERE i.id = ?`,
           [Number(invId)]
@@ -151,7 +192,7 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
         );
 
         existingInv = {
-          id: insertRes.id || Date.now(),
+          id: insertRes.id || 1,
           invoice_number: invNum,
           student_id: student_id,
           post_id: post_id,
@@ -173,7 +214,10 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     // Explicit Rule Check: SPP / Biaya Pendidikan DOES NOT ALLOW INSTALLMENTS (Must be paid in full per month)
     for (const inv of invoices) {
       const isSpp = inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan');
-      const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+      const invNominal = Number(inv.nominal || 0);
+      const invDiscount = Number(inv.discount_amount || 0);
+      const invPaid = Number(inv.paid_amount || 0);
+      const remaining = Math.max(0, invNominal - invDiscount - invPaid);
 
       if (isSpp && numericAmount < remaining - 0.01 && targetInvoiceIds.length === 1) {
         return res.status(400).json({
@@ -195,27 +239,40 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     let paidMonthList = [];
     let overallStatus = 'Lunas';
 
-    // Process each invoice & insert payment transaction to Supabase DB
+    // Verify a valid user ID for cashier_id to satisfy DB FK constraints
+    let validCashierId = req.user?.id || 1;
+    const userRow = await get(`SELECT id FROM users WHERE id = ?`, [validCashierId]);
+    if (!userRow) {
+      const fallbackUser = await get(`SELECT id FROM users LIMIT 1`);
+      validCashierId = fallbackUser ? fallbackUser.id : 1;
+    }
+
+    // Process each invoice & insert payment transaction to DB
     for (const inv of invoices) {
-      const remaining = Math.max(0, (inv.nominal || 500000) - (inv.discount_amount || 0) - (inv.paid_amount || 0));
+      const invNominal = Number(inv.nominal || 0);
+      const invDiscount = Number(inv.discount_amount || 0);
+      const invPaid = Number(inv.paid_amount || 0);
+      const remaining = Math.max(0, invNominal - invDiscount - invPaid);
       const isSpp = inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan');
       
       // Determine installment or full payment amount for this invoice
       const payForThisInv = (targetInvoiceIds.length === 1 && !isSpp && numericAmount < remaining && remaining > 0)
         ? numericAmount
-        : (remaining > 0 ? remaining : numericAmount);
+        : (remaining > 0 ? remaining : (invNominal > 0 ? invNominal : numericAmount));
+
+      const studentId = inv.student_id || 1;
 
       const paymentResult = await run(
         `INSERT INTO payments (transaction_number, invoice_id, student_id, cashier_id, amount, payment_method, payment_gateway_ref, status, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'Paid', ?)`,
-        [txnNumber, inv.id, inv.student_id || 1, req.user?.id || 1, payForThisInv, payment_method, payment_gateway_ref || `REF-${payment_method.toUpperCase()}`, notes || '']
+        [txnNumber, inv.id, studentId, validCashierId, payForThisInv, payment_method, payment_gateway_ref || `REF-${payment_method.toUpperCase()}`, notes || '']
       );
 
       if (!mainPaymentId) mainPaymentId = paymentResult.id;
 
-      // Update invoice paid_amount & status
-      const newPaidAmount = (inv.paid_amount || 0) + payForThisInv;
-      const netNominal = (inv.nominal || 500000) - (inv.discount_amount || 0);
+      // Update invoice paid_amount & status with proper numeric arithmetic
+      const newPaidAmount = invPaid + payForThisInv;
+      const netNominal = invNominal - invDiscount;
       const newStatus = (newPaidAmount >= (netNominal - 0.01)) ? 'Lunas' : 'Sebagian';
 
       if (newStatus === 'Sebagian') overallStatus = 'Sebagian';
@@ -234,13 +291,13 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     }
 
     // Default cash account increment
-    await run(`UPDATE accounts SET balance = balance + ? WHERE code = '101.01'`, [totalPaidInTxn || 500000]);
+    await run(`UPDATE accounts SET balance = balance + ? WHERE code = '101.01'`, [totalPaidInTxn || numericAmount]);
 
     // Safe send WhatsApp & audit log
     try {
       if (firstInv && firstInv.parent_phone) {
         const monthStr = paidMonthList.join(', ');
-        const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name || 'Biaya Pendidikan'}* an. *${firstInv.student_name || 'Siswa'}* (${monthStr}) sebesar *Rp ${(totalPaidInTxn || amount).toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Kuitansi: ${txnNumber}\n\nSalam,\nSekolah Cendekia Lamongan`;
+        const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name || 'Biaya Pendidikan'}* an. *${firstInv.student_name || 'Siswa'}* (${monthStr}) sebesar *Rp ${(totalPaidInTxn || numericAmount).toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Kuitansi: ${txnNumber}\n\nSalam,\nSekolah Cendekia Lamongan`;
         await sendWhatsApp(firstInv.parent_phone, firstInv.father_name || firstInv.student_name, waMessage, 'PaymentSuccess');
       }
     } catch (waErr) {
@@ -249,12 +306,12 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
 
     try {
       await logAudit(
-        req.user?.id || 1,
+        validCashierId,
         req.user?.name || 'Kasir',
         req.user?.role || 'kasir',
         'PAYMENT_SUCCESS',
         'PEMBAYARAN',
-        `Pembayaran ${paidMonthList.length} pos Rp ${totalPaidInTxn || amount} (Txn: ${txnNumber}) - Status: ${overallStatus}`,
+        `Pembayaran ${paidMonthList.length} pos Rp ${totalPaidInTxn || numericAmount} (Txn: ${txnNumber}) - Status: ${overallStatus}`,
         req
       );
     } catch (auditErr) {
@@ -264,23 +321,23 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     res.json({
       success: true,
       data: {
-        id: mainPaymentId || Date.now(),
+        id: mainPaymentId || 1,
         receipt_number: txnNumber,
         transaction_number: txnNumber,
-        amount: totalPaidInTxn || Number(amount),
+        amount: totalPaidInTxn || numericAmount,
         status: overallStatus
       },
-      payment_id: mainPaymentId || Date.now(),
+      payment_id: mainPaymentId || 1,
       receipt_number: txnNumber,
       transaction_number: txnNumber,
-      paid_amount: totalPaidInTxn || Number(amount),
+      paid_amount: totalPaidInTxn || numericAmount,
       remaining_amount: 0,
       status: overallStatus,
       message: `Pembayaran berhasil diproses (${overallStatus}) dan kwitansi diterbitkan.`
     });
   } catch (err) {
     console.error('POS Payment Route Error:', err);
-    res.status(500).json({ success: false, error: 'Pembayaran gagal diproses. Tidak ada kwitansi yang diterbitkan.' });
+    res.status(500).json({ success: false, error: 'Pembayaran gagal diproses: ' + err.message });
   }
 });
 

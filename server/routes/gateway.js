@@ -128,8 +128,10 @@ router.post('/callback', async (req, res) => {
     );
 
     // Update invoice
-    const newPaid = invoice.paid_amount + payAmount;
-    const newStatus = (newPaid >= (invoice.nominal - invoice.discount_amount - 0.01)) ? 'Lunas' : 'Sebagian';
+    const currentPaid = Number(invoice.paid_amount || 0);
+    const newPaid = currentPaid + payAmount;
+    const netNominal = Number(invoice.nominal || 0) - Number(invoice.discount_amount || 0);
+    const newStatus = (newPaid >= (netNominal - 0.01)) ? 'Lunas' : 'Sebagian';
 
     await run(`UPDATE invoices SET paid_amount = ?, status = ? WHERE id = ?`, [newPaid, newStatus, invoice.id]);
 

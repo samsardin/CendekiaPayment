@@ -74,32 +74,50 @@ export default function KwitansiView() {
   const fetchPayment = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/payments?1=1`);
-      if (res.data && res.data.success && res.data.data && res.data.data.length > 0) {
-        const target = res.data.data.find(p => 
-          (targetIdStr && p.id === parseInt(targetIdStr)) || 
-          (targetIdStr && p.receipt_number === targetIdStr) || 
-          (targetIdStr && p.transaction_number === targetIdStr) ||
-          (targetIdStr && p.receipt_number && p.receipt_number.toLowerCase() === targetIdStr.toLowerCase()) ||
-          (targetIdStr && p.transaction_number && p.transaction_number.toLowerCase() === targetIdStr.toLowerCase())
-        ) || res.data.data[0];
-
-        if (target) {
-          const siblings = res.data.data.filter(p => p.transaction_number === target.transaction_number);
-          setPaymentItems(siblings.length > 0 ? siblings : [target]);
-          setPayment(target);
-        } else {
-          setPaymentItems([defaultFallbackPayment]);
-          setPayment(defaultFallbackPayment);
-        }
-      } else {
-        setPaymentItems([defaultFallbackPayment]);
-        setPayment(defaultFallbackPayment);
+      if (!targetIdStr) {
+        setPayment(null);
+        setPaymentItems([]);
+        return;
       }
+
+      // 1. Direct fetch from dedicated receipt endpoint
+      const encoded = encodeURIComponent(targetIdStr);
+      try {
+        const res = await api.get(`/payments/receipt/${encoded}`);
+        if (res.data && res.data.success && res.data.data) {
+          setPayment(res.data.data);
+          setPaymentItems(res.data.items && res.data.items.length > 0 ? res.data.items : [res.data.data]);
+          return;
+        }
+      } catch (directErr) {
+        console.warn('Direct receipt lookup notice, attempting search query fallback:', directErr.message);
+      }
+
+      // 2. Fallback search query
+      const listRes = await api.get(`/payments?search=${encodeURIComponent(targetIdStr)}`);
+      if (listRes.data && listRes.data.success && listRes.data.data && listRes.data.data.length > 0) {
+        const match = listRes.data.data.find(p => 
+          p.receipt_number === targetIdStr || 
+          p.transaction_number === targetIdStr ||
+          (p.receipt_number && p.receipt_number.toLowerCase() === targetIdStr.toLowerCase()) ||
+          (p.transaction_number && p.transaction_number.toLowerCase() === targetIdStr.toLowerCase()) ||
+          p.id === parseInt(targetIdStr)
+        );
+
+        if (match) {
+          setPayment(match);
+          const siblings = listRes.data.data.filter(p => p.transaction_number === match.transaction_number);
+          setPaymentItems(siblings.length > 0 ? siblings : [match]);
+          return;
+        }
+      }
+
+      setPayment(null);
+      setPaymentItems([]);
     } catch (err) {
-      console.error(err);
-      setPaymentItems([defaultFallbackPayment]);
-      setPayment(defaultFallbackPayment);
+      console.error('Fetch payment receipt error:', err);
+      setPayment(null);
+      setPaymentItems([]);
     } finally {
       setLoading(false);
     }
@@ -110,14 +128,34 @@ export default function KwitansiView() {
   };
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-400 text-xs">Memuat Kwitansi Digital...</div>;
+    return (
+      <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <span>Memuat Kwitansi Digital...</span>
+      </div>
+    );
   }
 
   if (!payment) {
-    return <div className="p-8 text-center text-slate-400 text-xs">Kwitansi tidak ditemukan.</div>;
+    return (
+      <div className="p-8 max-w-lg mx-auto text-center space-y-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
+          <p className="font-bold text-slate-800 text-sm">Kwitansi Tidak Ditemukan</p>
+          <p className="text-xs text-slate-500">
+            Nomor kuitansi <span className="font-mono font-bold text-slate-700">{targetIdStr || '-'}</span> tidak ditemukan di database.
+          </p>
+          <button
+            onClick={() => navigate('/kasir-pos')}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all"
+          >
+            Kembali ke Kasir POS
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  const totalTransactionAmount = paymentItems.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalTransactionAmount = paymentItems.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const displayReceiptNumber = payment.receipt_number || payment.transaction_number || 'KW/2026/08/00001';
 
   return (
