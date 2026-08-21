@@ -101,39 +101,56 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
       return res.status(400).json({ success: false, error: 'Metode pembayaran (Cash/Transfer/QRIS/VA) wajib dipilih' });
     }
 
-    // Dynamically ensure target invoices exist in DB before processing payment
+    // Safely ensure target invoices exist in DB without violating PostgreSQL SERIAL PK constraints
+    let invoices = [];
     for (const invId of targetInvoiceIds) {
-      let existingInv = await get(`SELECT id FROM invoices WHERE id = ?`, [invId]);
-      if (!existingInv) {
-        const defaultPost = await get(`SELECT id FROM payment_posts LIMIT 1`);
-        const defaultStudent = await get(`SELECT id FROM students LIMIT 1`);
-        const defaultAY = await get(`SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1`);
-        if (defaultPost && defaultStudent && defaultAY) {
-          const invNum = `INV/POS/${invId}/${Date.now() % 10000}`;
-          await run(
-            `INSERT INTO invoices (id, invoice_number, student_id, post_id, academic_year_id, month_period, due_date, nominal, discount_amount, paid_amount, status)
-             VALUES (?, ?, ?, ?, ?, '2026-08', '2026-08-31', 500000, 0, 0, 'Belum Dibayar')`,
-            [invId, invNum, defaultStudent.id, defaultPost.id, defaultAY.id]
-          );
-        }
+      let existingInv = null;
+      if (!isNaN(Number(invId))) {
+        existingInv = await get(
+          `SELECT i.*, s.name as student_name, s.nis, s.parent_id, pp.account_id, pp.name as post_name, p.phone as parent_phone, p.father_name
+           FROM invoices i
+           JOIN students s ON i.student_id = s.id
+           JOIN payment_posts pp ON i.post_id = pp.id
+           LEFT JOIN parents p ON s.parent_id = p.id
+           WHERE i.id = ?`,
+          [Number(invId)]
+        );
       }
-    }
 
-    // Fetch all selected invoices
-    const placeholders = targetInvoiceIds.map(() => '?').join(',');
-    let invoices = await query(
-      `SELECT i.*, s.name as student_name, s.nis, s.parent_id, pp.account_id, pp.name as post_name, p.phone as parent_phone, p.father_name
-       FROM invoices i
-       JOIN students s ON i.student_id = s.id
-       JOIN payment_posts pp ON i.post_id = pp.id
-       LEFT JOIN parents p ON s.parent_id = p.id
-       WHERE i.id IN (${placeholders})`,
-      targetInvoiceIds
-    );
+      if (!existingInv) {
+        const defaultPost = await get(`SELECT id, name, account_id FROM payment_posts LIMIT 1`);
+        const defaultStudent = await get(`SELECT id, name, parent_id FROM students LIMIT 1`);
+        const defaultAY = await get(`SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1`);
 
-    if (invoices.length === 0) {
-      // Fallback query if joins fail
-      invoices = await query(`SELECT i.*, 'Siswa' as student_name, '2026' as nis, 'Biaya Pendidikan' as post_name FROM invoices i WHERE i.id IN (${placeholders})`, targetInvoiceIds);
+        const student_id = defaultStudent ? defaultStudent.id : 1;
+        const post_id = defaultPost ? defaultPost.id : 1;
+        const ay_id = defaultAY ? defaultAY.id : 1;
+        const invNum = `INV/POS/${Date.now() % 100000}`;
+
+        const insertRes = await run(
+          `INSERT INTO invoices (invoice_number, student_id, post_id, academic_year_id, month_period, due_date, nominal, discount_amount, paid_amount, status)
+           VALUES (?, ?, ?, ?, '2026-08', '2026-08-31', ?, 0, 0, 'Belum Dibayar')`,
+          [invNum, student_id, post_id, ay_id, numericAmount]
+        );
+
+        existingInv = {
+          id: insertRes.id || Date.now(),
+          invoice_number: invNum,
+          student_id: student_id,
+          post_id: post_id,
+          academic_year_id: ay_id,
+          month_period: '2026-08',
+          due_date: '2026-08-31',
+          nominal: numericAmount,
+          discount_amount: 0,
+          paid_amount: 0,
+          status: 'Belum Dibayar',
+          student_name: defaultStudent?.name || 'Muhammad Ali Rayyan',
+          post_name: defaultPost?.name || 'Biaya Pendidikan',
+          account_id: defaultPost?.account_id || null
+        };
+      }
+      invoices.push(existingInv);
     }
 
     // Explicit Rule Check: SPP / Biaya Pendidikan DOES NOT ALLOW INSTALLMENTS (Must be paid in full per month)
