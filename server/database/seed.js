@@ -1,9 +1,13 @@
 const bcrypt = require('bcryptjs');
-const { query, get, run, initDB } = require('./db');
+const { query, get, run, initDB, isPg } = require('./db');
+const seedSupabaseData = require('./seed_supabase');
 
 const seedData = async () => {
   try {
     await initDB();
+    if (isPg) {
+      return await seedSupabaseData();
+    }
 
     console.log('🌱 Starting Comprehensive Seeding Process for Cendekia Lamongan SFMS...');
 
