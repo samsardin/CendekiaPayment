@@ -44,7 +44,12 @@ router.put('/academic-years/:id/activate', verifyToken, authorizeRoles('superadm
 // === Units ===
 router.get('/units', verifyToken, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM units ORDER BY id ASC`);
+    let data = await query(`SELECT * FROM units ORDER BY id ASC`);
+    if (!data || data.length === 0) {
+      const seedData = require('../database/seed');
+      await seedData();
+      data = await query(`SELECT * FROM units ORDER BY id ASC`);
+    }
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

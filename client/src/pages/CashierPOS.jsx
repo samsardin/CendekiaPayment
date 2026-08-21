@@ -429,7 +429,10 @@ export default function CashierPOS() {
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-700">Langkah 1: Pilih Jenjang Pendidikan</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {units.map((u) => (
+                {(units.length > 0 ? units : [
+                  { id: 1, code: 'KBTK', name: 'KBTK-IT Cendekia' },
+                  { id: 2, code: 'SDIT', name: 'SDIT Cendekia' }
+                ]).map((u) => (
                   <button
                     key={u.id}
                     onClick={() => handleSelectUnit(u)}
