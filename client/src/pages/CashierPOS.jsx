@@ -120,65 +120,182 @@ export default function CashierPOS() {
     }
   }, [selectedInvoices]);
 
-  // Export History to CSV / Excel
-  const handleExportCSV = () => {
+  // Export History to PDF & Cetak Rekapitulasi
+  const handleExportPDF = () => {
     if (!paymentHistory || paymentHistory.length === 0) {
       alert('Tidak ada data riwayat transaksi untuk diexport pada filter saat ini.');
       return;
     }
 
-    const headers = [
-      'No',
-      'No. Kuitansi / Transaksi',
-      'Tanggal Transaksi',
-      'Waktu',
-      'NIS Siswa',
-      'Nama Siswa',
-      'Kelas',
-      'Jenjang / Unit',
-      'Pos Pembayaran',
-      'Jumlah Pembayaran (Rp)',
-      'Metode Pembayaran',
-      'Status',
-      'Kasir / Petugas',
-      'Catatan'
-    ];
+    const printWin = window.open('', '_blank', 'width=950,height=800');
+    if (!printWin) {
+      alert('Mohon izinkan pop-up pada browser untuk mencetak atau menyimpan PDF.');
+      return;
+    }
 
-    const rows = paymentHistory.map((p, idx) => {
+    const periodLabel = historyPeriod === 'all' ? 'Semua Periode' : historyPeriod === 'harian' ? 'Hari Ini' : historyPeriod === 'pekanan' ? 'Pekan Ini (7 Hari)' : 'Bulan Ini';
+    const methodLabel = historyMethod || 'Semua Metode';
+    const dateStamp = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const rowsHtml = paymentHistory.map((p, idx) => {
+      const recNum = p.receipt_number || p.transaction_number || '-';
       const d = p.payment_date ? new Date(p.payment_date) : new Date();
-      const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const amount = Number(p.amount) || 0;
+      const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const amount = Number(p.amount || 0).toLocaleString('id-ID');
 
-      return [
-        idx + 1,
-        `"${(p.receipt_number || p.transaction_number || '').replace(/"/g, '""')}"`,
-        `"${dateStr}"`,
-        `"${timeStr}"`,
-        `"${(p.nis || '-').replace(/"/g, '""')}"`,
-        `"${(p.student_name || 'Siswa').replace(/"/g, '""')}"`,
-        `"${(p.class_name || '-').replace(/"/g, '""')}"`,
-        `"${(p.unit_name || '-').replace(/"/g, '""')}"`,
-        `"${(p.post_name || 'Biaya Pendidikan').replace(/"/g, '""')}"`,
-        amount,
-        `"${(p.payment_method || 'Cash').replace(/"/g, '""')}"`,
-        `"${(p.status || 'Paid').replace(/"/g, '""')}"`,
-        `"${(p.cashier_name || 'Kasir Loket').replace(/"/g, '""')}"`,
-        `"${(p.notes || '-').replace(/"/g, '""')}"`
-      ].join(',');
-    });
+      return `
+        <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; padding: 6px 8px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+          <td style="font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; font-family: monospace;">${recNum}</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1; color: #475569; font-size: 10.5px;">${dateStr}</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1;">${p.nis || '-'}</td>
+          <td style="font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1;">${p.student_name || 'Siswa'}</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1; color: #334155;">${p.class_name || p.unit_name || '-'}</td>
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1;">${p.post_name || 'Biaya Pendidikan'}</td>
+          <td style="text-align: right; font-weight: 800; padding: 6px 8px; border: 1px solid #cbd5e1; color: #047857;">Rp ${amount}</td>
+          <td style="text-align: center; padding: 6px 8px; border: 1px solid #cbd5e1;">
+            <span style="background: #e2e8f0; color: #1e293b; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;">${p.payment_method || 'Cash'}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Rekap_Transaksi_Kasir_Cendekia_${historyPeriod}_${dateStamp}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Rekap_Transaksi_Kasir_Cendekia_${historyPeriod}_${new Date().toISOString().slice(0, 10)}</title>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: A4 portrait; margin: 12mm 10mm; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            color: #0f172a; 
+            margin: 0; 
+            padding: 24px; 
+            font-size: 11.5px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .btn-container { text-align: right; margin-bottom: 16px; }
+          .btn-print { 
+            background: #059669; 
+            color: white; 
+            border: none; 
+            padding: 10px 22px; 
+            font-size: 13px; 
+            font-weight: bold; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .header { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+          .header h1 { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.5px; color: #0f172a; }
+          .header p { margin: 3px 0 0 0; font-size: 11px; color: #475569; }
+          .badge { display: inline-block; margin-top: 8px; background: #0f172a; color: white; padding: 4px 14px; border-radius: 9999px; font-weight: bold; font-size: 10.5px; letter-spacing: 0.5px; }
+          .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 14px; font-size: 11px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
+          .summary-card { padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
+          .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+          .table-container th { background: #f1f5f9; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; margin-top: 24px; font-size: 11px; page-break-inside: avoid; }
+          .sig-line { margin-top: 55px; border-top: 1px solid #475569; display: inline-block; width: 220px; padding-top: 4px; font-weight: bold; }
+          @media print {
+            .btn-container { display: none !important; }
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="btn-container">
+          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang</button>
+        </div>
+
+        <div class="header">
+          <h1>SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN</h1>
+          <p>KBTK-IT &amp; SDIT Cendekia Lamongan • Jl. Veteran No. 45 Lamongan, Jawa Timur</p>
+          <div class="badge">LAPORAN REKAPITULASI PENERIMAAN KASIR / LOKET PEMBAYARAN</div>
+        </div>
+
+        <div class="meta-grid">
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Periode:</strong>${periodLabel}</div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Metode:</strong>${methodLabel}</div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Waktu Cetak:</strong>${dateStamp}</div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Total Transaksi:</strong>${historySummary.totalCount} Transaksi</div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card green">
+            <div style="font-size: 9.5px; text-transform: uppercase; font-weight: bold;">Total Penerimaan</div>
+            <div style="font-size: 16px; font-weight: 900;">Rp ${historySummary.totalAmount.toLocaleString('id-ID')}</div>
+          </div>
+          <div class="summary-card">
+            <div style="font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Penerimaan Tunai (Cash)</div>
+            <div style="font-size: 15px; font-weight: 900; color: #047857;">Rp ${historySummary.totalCash.toLocaleString('id-ID')}</div>
+          </div>
+          <div class="summary-card">
+            <div style="font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Penerimaan Non-Tunai</div>
+            <div style="font-size: 15px; font-weight: 900; color: #0f766e;">Rp ${historySummary.totalNonCash.toLocaleString('id-ID')}</div>
+          </div>
+        </div>
+
+        <table class="table-container">
+          <thead>
+            <tr>
+              <th style="width: 25px; text-align: center;">No</th>
+              <th>No. Kuitansi</th>
+              <th>Tanggal &amp; Waktu</th>
+              <th>NIS</th>
+              <th>Nama Siswa</th>
+              <th>Kelas / Unit</th>
+              <th>Pos Tagihan</th>
+              <th style="text-align: right;">Jumlah (Rp)</th>
+              <th style="text-align: center;">Metode</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+          <tfoot>
+            <tr style="background: #f1f5f9; font-weight: 900;">
+              <td colspan="7" style="text-align: right; padding: 8px; border: 1px solid #cbd5e1; text-transform: uppercase;">Total Penerimaan:</td>
+              <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e1; color: #065f46; font-size: 12px;">Rp ${historySummary.totalAmount.toLocaleString('id-ID')}</td>
+              <td style="border: 1px solid #cbd5e1;"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="signatures">
+          <div>
+            <p style="margin: 0; color: #64748b;">Mengetahui,</p>
+            <p style="margin: 2px 0 0 0; font-weight: bold;">Kepala Sekolah / Bendahara Yayasan</p>
+            <div class="sig-line">( .................................................. )</div>
+          </div>
+          <div>
+            <p style="margin: 0; color: #64748b;">Lamongan, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+            <p style="margin: 2px 0 0 0; font-weight: bold;">Petugas Kasir Loket</p>
+            <div class="sig-line">( Petugas Kasir Cendekia )</div>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
   };
 
   useEffect(() => {
@@ -1111,23 +1228,23 @@ export default function CashierPOS() {
                 />
               </div>
 
-              {/* ACTION EXPORT BUTTONS */}
+              {/* ACTION EXPORT PDF & CETAK REKAP BUTTONS */}
               <button
-                onClick={handleExportCSV}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Download Data Transaksi ke format Excel / CSV"
+                onClick={handleExportPDF}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                title="Export dan Download Laporan Transaksi Kasir ke format PDF"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export Excel/CSV</span>
+                <FileText className="w-4 h-4" />
+                <span>Export Laporan PDF</span>
               </button>
 
               <button
                 onClick={() => setPrintRekapModal(true)}
                 className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Pratinjau & Cetak Rekapitulasi Kasir / PDF"
+                title="Pratinjau Dokumen Rekapitulasi Kasir"
               >
                 <Printer className="w-4 h-4" />
-                <span>Cetak Rekap</span>
+                <span>Pratinjau / Cetak</span>
               </button>
             </div>
           </div>
@@ -1203,20 +1320,23 @@ export default function CashierPOS() {
             {/* Header Dialog Controls (Hidden on Print) */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-4 print:hidden">
               <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
-                <h3 className="text-lg font-bold text-slate-800">Pratinjau Rekapitulasi Transaksi Kasir</h3>
+                <FileText className="w-6 h-6 text-emerald-600" />
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Pratinjau Rekapitulasi Transaksi Kasir</h3>
+                  <p className="text-xs text-slate-500">Siap dicetak atau disimpan langsung ke format dokumen PDF</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2"
+                  onClick={handleExportPDF}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Cetak Dokumen / Simpan PDF</span>
+                  <span>Cetak / Simpan PDF Sekarang</span>
                 </button>
                 <button
                   onClick={() => setPrintRekapModal(false)}
-                  className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600"
+                  className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1233,8 +1353,8 @@ export default function CashierPOS() {
                 <p className="text-xs font-semibold text-slate-600 mt-0.5">
                   KBTK-IT &amp; SDIT Cendekia Lamongan • Jl. Veteran No. 45 Lamongan, Jawa Timur
                 </p>
-                <div className="mt-2 inline-block bg-slate-100 px-3 py-1 rounded-full border border-slate-300">
-                  <span className="text-xs font-black uppercase text-slate-800">
+                <div className="mt-2 inline-block bg-slate-900 text-white px-3.5 py-1 rounded-full border border-slate-800 shadow-xs">
+                  <span className="text-xs font-black uppercase tracking-wide">
                     LAPORAN REKAPITULASI PENERIMAAN KASIR / LOKET PEMBAYARAN
                   </span>
                 </div>
@@ -1364,6 +1484,23 @@ export default function CashierPOS() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Bottom Modal Actions */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+              <button
+                onClick={() => setPrintRekapModal(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Tutup Pratinjau
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Printer className="w-4 h-4" />
+                <span>🖨️ Cetak / Simpan PDF Sekarang</span>
+              </button>
             </div>
           </div>
         </div>
