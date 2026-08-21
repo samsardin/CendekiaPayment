@@ -302,9 +302,10 @@ export default function CashierPOS() {
 
       if (res.data.success) {
         const changeAmount = payMethod === 'Cash' ? Math.max(0, cashNum - amountNum) : 0;
+        const receiptNum = res.data.data?.receipt_number || res.data.transaction_number || res.data.payment_id;
         setSuccessModal({
-          payment: res.data.data,
-          receipt_number: res.data.data.receipt_number,
+          payment: res.data.data || res.data,
+          receipt_number: receiptNum,
           change: changeAmount,
           itemsCount: selectedInvoices.length,
           student_name: selectedStudent?.name,

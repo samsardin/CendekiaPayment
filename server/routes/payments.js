@@ -205,7 +205,15 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
 
     res.json({
       success: true,
+      data: {
+        id: mainPaymentId,
+        receipt_number: txnNumber,
+        transaction_number: txnNumber,
+        amount: totalPaidInTxn,
+        status: overallStatus
+      },
       payment_id: mainPaymentId,
+      receipt_number: txnNumber,
       transaction_number: txnNumber,
       paid_amount: totalPaidInTxn,
       remaining_amount: Math.max(0, (invoices[0].nominal - invoices[0].discount_amount) - (invoices[0].paid_amount + totalPaidInTxn)),
