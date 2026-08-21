@@ -84,17 +84,17 @@ app.use('/', apiRouter);
 // Initialize database & start server
 const startServer = async () => {
   try {
-    if (!process.env.VERCEL) {
-      await seedData();
-      app.listen(PORT, () => {
-        console.log(`🚀 CendekiaPayment SFMS Server listening on http://localhost:${PORT}`);
-      });
-    }
+    await seedData();
+    app.listen(PORT, () => {
+      console.log(`🚀 CendekiaPayment SFMS Server listening on http://localhost:${PORT}`);
+    });
   } catch (err) {
     console.error('Failed to start server:', err);
   }
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
