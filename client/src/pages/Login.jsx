@@ -23,11 +23,8 @@ export default function Login() {
     setErrorMsg(null);
     const res = await login(email, password);
     if (res?.success) {
-      if (res.user?.role === 'ortu') {
-        navigate('/parent-portal');
-      } else {
-        navigate('/dashboard');
-      }
+      const targetPath = res.user?.role === 'ortu' ? '/parent-portal' : '/dashboard';
+      window.location.href = targetPath;
     } else {
       setErrorMsg(res?.error || 'Email / Password salah');
     }
@@ -37,11 +34,8 @@ export default function Login() {
     setErrorMsg(null);
     const res = await switchRoleDemo(presetEmail);
     if (res?.success) {
-      if (presetEmail.includes('ortu') || res.user?.role === 'ortu') {
-        navigate('/parent-portal');
-      } else {
-        navigate('/dashboard');
-      }
+      const targetPath = (presetEmail.includes('ortu') || res.user?.role === 'ortu') ? '/parent-portal' : '/dashboard';
+      window.location.href = targetPath;
     } else {
       setErrorMsg(res?.error || 'Gagal login ke akun demo');
     }
