@@ -3,8 +3,12 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
-const isPg = Boolean(dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase')));
+const dbUrl = process.env.DATABASE_URL || 
+              process.env.SUPABASE_DB_URL || 
+              process.env.POSTGRES_URL || 
+              process.env.POSTGRES_URL_NON_POOLING || 
+              process.env.VERCEL_POSTGRES_URL;
+const isPg = Boolean(dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase') || dbUrl.includes('neon') || dbUrl.includes('vercel')));
 
 let pool = null;
 let sqliteDb = null;
