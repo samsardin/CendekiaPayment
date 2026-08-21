@@ -43,12 +43,16 @@ app.get('/api/health', (req, res) => {
 const startServer = async () => {
   try {
     await seedData();
-    app.listen(PORT, () => {
-      console.log(`🚀 CendekiaPayment SFMS Server listening on http://localhost:${PORT}`);
-    });
+    if (!process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`🚀 CendekiaPayment SFMS Server listening on http://localhost:${PORT}`);
+      });
+    }
   } catch (err) {
     console.error('Failed to start server:', err);
   }
 };
 
 startServer();
+
+module.exports = app;
