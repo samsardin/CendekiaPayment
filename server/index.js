@@ -35,6 +35,32 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Diagnostic DB Connection Status Endpoint
+app.get('/api/db-status', async (req, res) => {
+  const { isPg, query } = require('./database/db');
+  const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
+  try {
+    const result = await query(`SELECT COUNT(*) as count FROM students`);
+    const studentCount = result && result[0] ? (result[0].count || result[0].COUNT || 0) : 0;
+    res.json({
+      success: true,
+      engine: isPg ? 'PostgreSQL (Supabase Cloud)' : 'SQLite3 (Local /tmp)',
+      dbUrlConfigured: Boolean(dbUrl),
+      connected: true,
+      totalStudents: parseInt(studentCount),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      engine: isPg ? 'PostgreSQL (Supabase Cloud)' : 'SQLite3 (Local /tmp)',
+      dbUrlConfigured: Boolean(dbUrl),
+      connected: false,
+      error: err.message
+    });
+  }
+});
+
 // Register API Endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
