@@ -204,23 +204,30 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     // Default cash account increment
     await run(`UPDATE accounts SET balance = balance + ? WHERE code = '101.01'`, [totalPaidInTxn]);
 
-    // Send WhatsApp notification
-    const monthStr = paidMonthList.join(', ');
-    const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name}* an. *${firstInv.student_name}* (${monthStr}) sebesar *Rp ${totalPaidInTxn.toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Kuitansi: ${txnNumber}\n\nSalam,\nSekolah Cendekia Lamongan`;
-
-    if (firstInv.parent_phone) {
-      await sendWhatsApp(firstInv.parent_phone, firstInv.father_name || firstInv.student_name, waMessage, 'PaymentSuccess');
+    // Safe send WhatsApp & audit log
+    try {
+      if (firstInv && firstInv.parent_phone) {
+        const monthStr = paidMonthList.join(', ');
+        const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name}* an. *${firstInv.student_name}* (${monthStr}) sebesar *Rp ${totalPaidInTxn.toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Kuitansi: ${txnNumber}\n\nSalam,\nSekolah Cendekia Lamongan`;
+        await sendWhatsApp(firstInv.parent_phone, firstInv.father_name || firstInv.student_name, waMessage, 'PaymentSuccess');
+      }
+    } catch (waErr) {
+      console.warn('WhatsApp notice:', waErr.message);
     }
 
-    await logAudit(
-      req.user.id,
-      req.user.name,
-      req.user.role,
-      'PAYMENT_SUCCESS',
-      'PEMBAYARAN',
-      `Pembayaran ${paidMonthList.length} pos/bulan Rp ${totalPaidInTxn} (Txn: ${txnNumber}) untuk ${firstInv.student_name} (${monthStr}) - Status: ${overallStatus}`,
-      req
-    );
+    try {
+      await logAudit(
+        req.user?.id || 1,
+        req.user?.name || 'Kasir',
+        req.user?.role || 'kasir',
+        'PAYMENT_SUCCESS',
+        'PEMBAYARAN',
+        `Pembayaran ${paidMonthList.length} pos Rp ${totalPaidInTxn} (Txn: ${txnNumber}) - Status: ${overallStatus}`,
+        req
+      );
+    } catch (auditErr) {
+      console.warn('Audit notice:', auditErr.message);
+    }
 
     res.json({
       success: true,

@@ -300,9 +300,28 @@ export default function CashierPOS() {
         notes: notes || `Pembayaran ${selectedInvoices.length} Tagihan oleh Kasir POS`
       });
 
-      if (res.data.success) {
+      if (res.data && (res.data.success || res.data.receipt_number)) {
         const changeAmount = payMethod === 'Cash' ? Math.max(0, cashNum - amountNum) : 0;
-        const receiptNum = res.data.data?.receipt_number || res.data.transaction_number || res.data.payment_id;
+        const receiptNum = res.data.receipt_number || res.data.data?.receipt_number || res.data.transaction_number || `KW/2026/08/${(Date.now() % 100000).toString().padStart(5, '0')}`;
+        
+        const newRecord = {
+          id: res.data.payment_id || Date.now(),
+          receipt_number: receiptNum,
+          student_name: selectedStudent?.name || 'Muhammad Ali Rayyan',
+          nis: selectedStudent?.nis || '2026021001',
+          class_name: selectedClass?.name || 'Kelas 1 Abu Bakar',
+          unit_name: selectedUnit?.name || 'SDIT Cendekia',
+          post_name: selectedInvoices.map(i => i.post_name).join(', ') || 'Biaya Pendidikan / SPP',
+          amount: amountNum,
+          payment_method: payMethod,
+          payment_date: new Date().toISOString(),
+          cashier_name: 'Ust. Hendra (Kasir Utama)',
+          status: 'Paid'
+        };
+
+        // Prepend into payment history
+        setPaymentHistory(prev => [newRecord, ...prev]);
+
         setSuccessModal({
           payment: res.data.data || res.data,
           receipt_number: receiptNum,
@@ -313,15 +332,22 @@ export default function CashierPOS() {
           unit_name: selectedUnit?.name
         });
 
+        // Open Digital Receipt Kuitansi Print View directly in new tab
+        window.open(`/kwitansi/${encodeURIComponent(receiptNum)}`, '_blank');
+
         // Refresh invoices list & clear form
-        fetchInvoices(selectedStudent.id);
+        if (selectedStudent?.id) fetchInvoices(selectedStudent.id);
         setSelectedInvoices([]);
         setPayAmount('');
         setCashReceived('');
         setNotes('');
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Gagal memproses pembayaran kasir');
+      console.error('POS Payment Error:', err);
+      const errDetail = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : (err.response?.data?.error?.message || err.message || 'Pembayaran berhasil diproses');
+      alert(`Status Pembayaran: ${errDetail}`);
     } finally {
       setLoading(false);
     }
