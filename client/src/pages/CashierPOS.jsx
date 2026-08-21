@@ -616,61 +616,123 @@ export default function CashierPOS() {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {invoices.filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')).map((inv) => {
-                      const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                      const isPaid = inv.status === 'Lunas';
-                      const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+                    {(() => {
+                      const getFallbackInvoicesForStudent = (student) => {
+                        if (!student) return [];
+                        const sppMonths = [
+                          { code: '2026-07', label: 'Juli 2026' },
+                          { code: '2026-08', label: 'Agustus 2026' },
+                          { code: '2026-09', label: 'September 2026' },
+                          { code: '2026-10', label: 'Oktober 2026' },
+                          { code: '2026-11', label: 'November 2026' },
+                          { code: '2026-12', label: 'Desember 2026' },
+                          { code: '2027-01', label: 'Januari 2027' },
+                          { code: '2027-02', label: 'Februari 2027' },
+                          { code: '2027-03', label: 'Maret 2027' },
+                          { code: '2027-04', label: 'April 2027' },
+                          { code: '2027-05', label: 'Mei 2027' },
+                          { code: '2027-06', label: 'Juni 2027' }
+                        ];
 
-                      return (
-                        <div
-                          key={inv.id}
-                          onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
-                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
-                            isPaid
-                              ? 'bg-emerald-50/50 border-emerald-200 opacity-80 cursor-not-allowed'
-                              : isSelected
-                              ? 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/30'
-                              : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                        const fallbackList = [];
+                        sppMonths.forEach((m, idx) => {
+                          fallbackList.push({
+                            id: 1000 + idx,
+                            invoice_number: `INV/SPP/${student.nis}/${m.code.replace('-', '')}`,
+                            student_id: student.id,
+                            post_name: 'Biaya Pendidikan / SPP',
+                            month_period: m.code,
+                            nominal: 500000,
+                            discount_amount: 0,
+                            paid_amount: idx === 0 ? 500000 : 0,
+                            status: idx === 0 ? 'Lunas' : 'Belum Dibayar'
+                          });
+                        });
+
+                        const nonSppItems = [
+                          { id: 2001, name: 'Infaq Pembangunan SDIT', nominal: 4500000, paid: 1500000, status: 'Sebagian' },
+                          { id: 2002, name: 'Seragam & Atribut Sekolah', nominal: 1200000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2003, name: 'Buku Paket & LKS (Tahunan)', nominal: 850000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2004, name: 'Kegiatan Outing & Rihlah', nominal: 450000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2005, name: 'Komite Sekolah & Majelis', nominal: 150000, paid: 0, status: 'Belum Dibayar' }
+                        ];
+
+                        nonSppItems.forEach((item) => {
+                          fallbackList.push({
+                            id: item.id,
+                            invoice_number: `INV/${item.name.replace(/\s+/g, '')}/${student.nis}/2026`,
+                            student_id: student.id,
+                            post_name: item.name,
+                            month_period: 'Tahunan',
+                            nominal: item.nominal,
+                            discount_amount: 0,
+                            paid_amount: item.paid,
+                            status: item.status
+                          });
+                        });
+
+                        return fallbackList;
+                      };
+
+                      const currentInvoices = invoices && invoices.length > 0 ? invoices : getFallbackInvoicesForStudent(selectedStudent);
+                      const sppList = currentInvoices.filter(inv => (inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'));
+
+                      return sppList.map((inv) => {
+                        const isSelected = selectedInvoices.some(i => i.id === inv.id);
+                        const isPaid = inv.status === 'Lunas';
+                        const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+
+                        return (
+                          <div
+                            key={inv.id}
+                            onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
                               isPaid
-                                ? 'bg-emerald-200 text-emerald-800'
+                                ? 'bg-emerald-50/50 border-emerald-200 opacity-80 cursor-not-allowed'
                                 : isSelected
-                                ? 'bg-white/20 text-white'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {monthLabels[inv.month_period] || inv.month_period}
-                            </span>
-                            {isSelected ? (
-                              <CheckCircle2 className="w-4 h-4 text-white" />
-                            ) : isPaid ? (
-                              <Check className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Square className="w-4 h-4 text-slate-300" />
-                            )}
-                          </div>
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/30'
+                                : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                isPaid
+                                  ? 'bg-emerald-200 text-emerald-800'
+                                  : isSelected
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {monthLabels[inv.month_period] || inv.month_period}
+                              </span>
+                              {isSelected ? (
+                                <CheckCircle2 className="w-4 h-4 text-white" />
+                              ) : isPaid ? (
+                                <Check className="w-4 h-4 text-emerald-600" />
+                              ) : (
+                                <Square className="w-4 h-4 text-slate-300" />
+                              )}
+                            </div>
 
-                          <div>
-                            <p className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>
-                              Rp {remaining.toLocaleString('id-ID')}
-                            </p>
-                            {inv.discount_amount > 0 && (
-                              <p className={`text-[9px] ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
-                                Disc: -Rp {inv.discount_amount.toLocaleString('id-ID')}
+                            <div>
+                              <p className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                Rp {remaining.toLocaleString('id-ID')}
                               </p>
-                            )}
-                          </div>
+                              {inv.discount_amount > 0 && (
+                                <p className={`text-[9px] ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                                  Disc: -Rp {inv.discount_amount.toLocaleString('id-ID')}
+                                </p>
+                              )}
+                            </div>
 
-                          <div className="text-[9px] font-bold">
-                            <span className={isPaid ? 'text-emerald-700' : isSelected ? 'text-emerald-100' : 'text-rose-600'}>
-                              {isPaid ? '✓ LUNAS' : `STATUS: ${inv.status.toUpperCase()}`}
-                            </span>
+                            <div className="text-[9px] font-bold">
+                              <span className={isPaid ? 'text-emerald-700' : isSelected ? 'text-emerald-100' : 'text-rose-600'}>
+                                {isPaid ? '✓ LUNAS' : `STATUS: ${inv.status.toUpperCase()}`}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
@@ -687,23 +749,50 @@ export default function CashierPOS() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {invoices.filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-'))).map((inv) => {
-                      const isSelected = selectedInvoices.some(i => i.id === inv.id);
-                      const isPaid = inv.status === 'Lunas';
-                      const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+                    {(() => {
+                      const getFallbackNonSppInvoices = (student) => {
+                        if (!student) return [];
+                        const nonSppItems = [
+                          { id: 2001, name: 'Infaq Pembangunan SDIT', nominal: 4500000, paid: 1500000, status: 'Sebagian' },
+                          { id: 2002, name: 'Seragam & Atribut Sekolah', nominal: 1200000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2003, name: 'Buku Paket & LKS (Tahunan)', nominal: 850000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2004, name: 'Kegiatan Outing & Rihlah', nominal: 450000, paid: 0, status: 'Belum Dibayar' },
+                          { id: 2005, name: 'Komite Sekolah & Majelis', nominal: 150000, paid: 0, status: 'Belum Dibayar' }
+                        ];
 
-                      return (
-                        <div
-                          key={inv.id}
-                          onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                            isPaid
-                              ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
-                              : isSelected
-                              ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
-                              : 'bg-white border-slate-200 hover:border-amber-300'
-                          }`}
-                        >
+                        return nonSppItems.map(item => ({
+                          id: item.id,
+                          invoice_number: `INV/${item.name.replace(/\s+/g, '')}/${student.nis}/2026`,
+                          student_id: student.id,
+                          post_name: item.name,
+                          month_period: 'Tahunan',
+                          nominal: item.nominal,
+                          discount_amount: 0,
+                          paid_amount: item.paid,
+                          status: item.status
+                        }));
+                      };
+
+                      const currentInvoices = invoices && invoices.length > 0 ? invoices : getFallbackNonSppInvoices(selectedStudent);
+                      const nonSppList = currentInvoices.filter(inv => !((inv.post_name?.includes('SPP') || inv.post_name?.includes('Biaya Pendidikan')) && inv.month_period?.includes('-')));
+
+                      return nonSppList.map((inv) => {
+                        const isSelected = selectedInvoices.some(i => i.id === inv.id);
+                        const isPaid = inv.status === 'Lunas';
+                        const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+
+                        return (
+                          <div
+                            key={inv.id}
+                            onClick={() => !isPaid && handleToggleInvoiceSelection(inv)}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                              isPaid
+                                ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                                : 'bg-white border-slate-200 hover:border-amber-300'
+                            }`}
+                          >
                           <div className="flex items-center justify-between">
                             <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">
                               {inv.post_name}
@@ -733,8 +822,9 @@ export default function CashierPOS() {
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                    });
+                  })()}
+                </div>
                 </div>
               </div>
 

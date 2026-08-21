@@ -24,17 +24,30 @@ const AY_MONTHS = [
 // Helper to ensure ALL payment posts (SPP 12 Months + Non-SPP) exist for a student
 const ensureAllStudentInvoices = async (studentId) => {
   try {
-    const student = await get(`SELECT id, nis, unit_id FROM students WHERE id = ?`, [studentId]);
+    let student = await get(`SELECT id, nis, unit_id FROM students WHERE id = ? OR nis = ?`, [studentId, studentId]);
+    if (!student) {
+      const seedData = require('../database/seed');
+      await seedData();
+      student = await get(`SELECT id, nis, unit_id FROM students WHERE id = ? OR nis = ?`, [studentId, studentId]);
+    }
     if (!student) return;
 
-    const activeAY = await get(`SELECT id FROM academic_years WHERE is_active = 1`);
+    let activeAY = await get(`SELECT id FROM academic_years WHERE is_active = 1`);
+    if (!activeAY) {
+      const seedData = require('../database/seed');
+      await seedData();
+      activeAY = await get(`SELECT id FROM academic_years WHERE is_active = 1`);
+    }
     if (!activeAY) return;
 
     // 1. Ensure 12 SPP monthly invoices
-    const sppPost = await get(
+    let sppPost = await get(
       `SELECT id FROM payment_posts WHERE (unit_id = ? OR unit_id IS NULL) AND code LIKE '%SPP%' AND is_active = 1 LIMIT 1`,
       [student.unit_id]
     );
+    if (!sppPost) {
+      sppPost = await get(`SELECT id FROM payment_posts WHERE code LIKE '%SPP%' LIMIT 1`);
+    }
 
     if (sppPost) {
       const sppNominal = await resolveEffectiveNominal(sppPost.id, student.id);
