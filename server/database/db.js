@@ -5,9 +5,9 @@ try {
 } catch (e) {
   // pg is optional when using SQLite fallback
 }
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+
+let sqlite3 = null;
+let sqliteDb = null;
 
 const dbUrl = process.env.DATABASE_URL || 
               process.env.SUPABASE_DB_URL || 
@@ -18,13 +18,6 @@ const dbUrl = process.env.DATABASE_URL ||
 const isPg = Boolean(Pool && dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://') || dbUrl.includes('supabase') || dbUrl.includes('neon') || dbUrl.includes('vercel')));
 
 let pool = null;
-let sqliteDb = null;
-
-// Always initialize SQLite fallback db instance
-const dbPath = process.env.VERCEL
-  ? path.join('/tmp', 'cendekiapayment.db')
-  : path.resolve(__dirname, '../../cendekiapayment.db');
-sqliteDb = new sqlite3.Database(dbPath);
 
 if (isPg) {
   try {
@@ -32,13 +25,25 @@ if (isPg) {
     pool = new Pool({
       connectionString: dbUrl,
       ssl: { rejectUnauthorized: false },
-      max: 5,
-      connectionTimeoutMillis: 5000,
+      max: 10,
+      connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 10000
     });
   } catch (err) {
     console.error('PostgreSQL Pool initialization error:', err.message);
     pool = null;
+  }
+} else {
+  try {
+    sqlite3 = require('sqlite3').verbose();
+    const path = require('path');
+    const dbPath = process.env.VERCEL
+      ? path.join('/tmp', 'cendekiapayment.db')
+      : path.resolve(__dirname, '../../cendekiapayment.db');
+    sqliteDb = new sqlite3.Database(dbPath);
+  } catch (sqliteErr) {
+    console.warn('SQLite3 initialization notice:', sqliteErr.message);
+    sqliteDb = null;
   }
 }
 
@@ -63,6 +68,8 @@ const query = async (sql, params = []) => {
     } catch (pgErr) {
       console.warn('PostgreSQL query notice (using fallback):', pgErr.message);
     }
+  if (!sqliteDb) {
+    return [];
   }
   return new Promise((resolve) => {
     sqliteDb.all(sql, params, (err, rows) => {
@@ -85,6 +92,9 @@ const get = async (sql, params = []) => {
     } catch (pgErr) {
       console.warn('PostgreSQL get notice (using fallback):', pgErr.message);
     }
+  }
+  if (!sqliteDb) {
+    return null;
   }
   return new Promise((resolve) => {
     sqliteDb.get(sql, params, (err, row) => {
@@ -112,6 +122,9 @@ const run = async (sql, params = []) => {
       console.warn('PostgreSQL run notice (using fallback):', pgErr.message);
     }
   }
+  if (!sqliteDb) {
+    return { id: null, changes: 0 };
+  }
   return new Promise((resolve) => {
     sqliteDb.run(sql, params, function (err) {
       if (err) {
@@ -128,6 +141,8 @@ const run = async (sql, params = []) => {
 const initDB = async () => {
   if (isPg && pool) {
     try {
+      const path = require('path');
+      const fs = require('fs');
       const schemaPath = path.join(__dirname, 'supabase_schema_v2.sql');
       if (fs.existsSync(schemaPath)) {
         const sql = fs.readFileSync(schemaPath, 'utf8');
@@ -137,7 +152,12 @@ const initDB = async () => {
       return;
     } catch (err) {
       console.warn('Supabase schema init notice:', err.message);
+      return;
     }
+  }
+
+  if (!sqliteDb) {
+    return;
   }
 
   return new Promise((resolve) => {
