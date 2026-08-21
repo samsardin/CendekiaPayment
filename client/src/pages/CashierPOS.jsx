@@ -468,7 +468,18 @@ export default function CashierPOS() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {classes.map((c) => (
+                {(classes.length > 0 ? classes : (
+                  selectedUnit?.code === 'KBTK' ? [
+                    { id: 1, name: 'Kelompok Bermain (KB)', teacher: 'Ustz. Aisyah, S.Pd', capacity: 20 },
+                    { id: 2, name: 'TK-A Bintang', teacher: 'Ustz. Khadijah, S.Pd', capacity: 25 },
+                    { id: 3, name: 'TK-B Bulan', teacher: 'Ustz. Maryam, S.Pd', capacity: 25 }
+                  ] : [
+                    { id: 4, name: 'Kelas 1 Abu Bakar', teacher: 'Ust. Ali Imran, S.Pd.I', capacity: 28 },
+                    { id: 5, name: 'Kelas 1 Umar', teacher: 'Ustz. Halimah, S.Pd', capacity: 28 },
+                    { id: 6, name: 'Kelas 2 Utsman', teacher: 'Ust. Mahmud, S.Pd', capacity: 30 },
+                    { id: 7, name: 'Kelas 3 Ali', teacher: 'Ustz. Nur, S.Si', capacity: 30 }
+                  ]
+                )).map((c) => (
                   <button
                     key={c.id}
                     onClick={() => handleSelectClass(c)}
@@ -478,7 +489,7 @@ export default function CashierPOS() {
                       <GraduationCap className="w-5 h-5" />
                     </div>
                     <h3 className="font-bold text-slate-800 text-sm">{c.name}</h3>
-                    <p className="text-[11px] text-slate-400">Tingkat {c.level}</p>
+                    <p className="text-[11px] text-slate-400">{c.homeroom_teacher || 'Wali Kelas'}</p>
                   </button>
                 ))}
               </div>

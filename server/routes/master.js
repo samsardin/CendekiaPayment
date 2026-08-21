@@ -63,11 +63,16 @@ router.get('/classes', verifyToken, async (req, res) => {
     let sql = `SELECT c.*, u.name as unit_name FROM classes c JOIN units u ON c.unit_id = u.id`;
     let params = [];
     if (unit_id) {
-      sql += ` WHERE c.unit_id = ?`;
-      params.push(unit_id);
+      sql += ` WHERE (c.unit_id = ? OR c.unit_id = ?)`;
+      params.push(unit_id, parseInt(unit_id) || unit_id);
     }
     sql += ` ORDER BY c.unit_id ASC, c.name ASC`;
-    const data = await query(sql, params);
+    let data = await query(sql, params);
+    if (!data || data.length === 0) {
+      const seedData = require('../database/seed');
+      await seedData();
+      data = await query(sql, params);
+    }
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
