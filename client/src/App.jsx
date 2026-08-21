@@ -40,7 +40,10 @@ const ProtectedLayout = () => {
             <Route path="/accounts" element={<AccountsChart />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/parent-portal" element={<ParentPortal />} />
-            <Route path="/receipt/:id" element={<KwitansiView />} />
+            <Route path="/receipt/*" element={<KwitansiView />} />
+            <Route path="/receipt" element={<KwitansiView />} />
+            <Route path="/kwitansi/*" element={<KwitansiView />} />
+            <Route path="/kwitansi" element={<KwitansiView />} />
             <Route path="/gateway" element={<GatewaySettings />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit-logs" element={<AuditLogs />} />

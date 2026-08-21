@@ -39,29 +39,32 @@ const formatMonthPeriod = (periodStr, invoiceNumber = '') => {
 };
 
 export default function KwitansiView() {
-  const { id } = useParams();
+  const params = useParams();
   const navigate = useNavigate();
   const [payment, setPayment] = useState(null);
   const [paymentItems, setPaymentItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [printFormat, setPrintFormat] = useState('thermal'); // 'thermal' (80mm) or 'a4'
 
+  // Safely extract receipt id or transaction number from URL path
+  const rawId = params['*'] || params.id || window.location.pathname.replace(/^\/(receipt|kwitansi)\/?/, '');
+  const targetIdStr = decodeURIComponent(rawId || '').trim();
+
   useEffect(() => {
     fetchPayment();
-  }, [id]);
+  }, [targetIdStr]);
 
   const fetchPayment = async () => {
     setLoading(true);
     try {
-      const decodedId = decodeURIComponent(id || '').trim();
       const res = await api.get(`/payments?1=1`);
       if (res.data.success && res.data.data.length > 0) {
         const target = res.data.data.find(p => 
-          p.id === parseInt(decodedId) || 
-          p.receipt_number === decodedId || 
-          p.transaction_number === decodedId ||
-          (p.receipt_number && p.receipt_number.toLowerCase() === decodedId.toLowerCase()) ||
-          (p.transaction_number && p.transaction_number.toLowerCase() === decodedId.toLowerCase())
+          (targetIdStr && p.id === parseInt(targetIdStr)) || 
+          (targetIdStr && p.receipt_number === targetIdStr) || 
+          (targetIdStr && p.transaction_number === targetIdStr) ||
+          (targetIdStr && p.receipt_number && p.receipt_number.toLowerCase() === targetIdStr.toLowerCase()) ||
+          (targetIdStr && p.transaction_number && p.transaction_number.toLowerCase() === targetIdStr.toLowerCase())
         ) || res.data.data[0];
 
         if (target) {
