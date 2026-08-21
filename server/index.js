@@ -32,8 +32,10 @@ app.use((req, res, next) => {
   next();
 });
 
+const apiRouter = express.Router();
+
 // Diagnostic DB Connection Status Endpoint
-app.get('/api/db-status', async (req, res) => {
+apiRouter.get('/db-status', async (req, res) => {
   const { isPg, query } = require('./database/db');
   const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
   try {
@@ -59,21 +61,25 @@ app.get('/api/db-status', async (req, res) => {
 });
 
 // Register API Endpoints
-app.use('/api/auth', authRoutes);
-app.use('/api/master', masterRoutes);
-app.use('/api/pos', posRoutes);
-app.use('/api/accounts', accountsRoutes);
-app.use('/api/invoices', invoicesRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/expenses', expensesRoutes);
-app.use('/api/gateway', gatewayRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/audit', auditRoutes);
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/master', masterRoutes);
+apiRouter.use('/pos', posRoutes);
+apiRouter.use('/accounts', accountsRoutes);
+apiRouter.use('/invoices', invoicesRoutes);
+apiRouter.use('/payments', paymentsRoutes);
+apiRouter.use('/expenses', expensesRoutes);
+apiRouter.use('/gateway', gatewayRoutes);
+apiRouter.use('/reports', reportsRoutes);
+apiRouter.use('/dashboard', dashboardRoutes);
+apiRouter.use('/audit', auditRoutes);
 
-app.get('/api/health', (req, res) => {
+apiRouter.get('/health', (req, res) => {
   res.json({ success: true, message: 'CendekiaPayment Backend API Running', timestamp: new Date() });
 });
+
+// Mount on both /api and root /
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // Initialize database & start server
 const startServer = async () => {
