@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, get, run } = require('../database/db');
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { logAudit } = require('../middleware/auditMiddleware');
+const { sendWhatsApp } = require('../utils/whatsapp');
 
 // === PAYMENT GATEWAY SIMULATION ===
 
@@ -97,13 +98,10 @@ router.post('/callback', async (req, res) => {
     await run(`UPDATE accounts SET balance = balance + ? WHERE code = '102.01'`, [payAmount]); // PG Clearing Account
 
     // Trigger WhatsApp notification
-    const waMsg = `[Payment Gateway Callback]\nAssalamu'alaikum Yth. ${invoice.father_name || 'Orang Tua'},\n\nPembayaran *${invoice.post_name}* an. *${invoice.student_name}* sebesar *Rp ${payAmount.toLocaleString('id-ID')}* via *${payment_method}* telah TERKONFIRMASI LUNAS secara otomatis oleh Payment Gateway.\n\nRef PG: ${order_id}\n\nKwitansi: http://localhost:5173/receipt/${paymentResult.id}`;
+    const waMsg = `Assalamu'alaikum Yth. ${invoice.father_name || 'Orang Tua'},\n\nPembayaran *${invoice.post_name}* an. *${invoice.student_name}* sebesar *Rp ${payAmount.toLocaleString('id-ID')}* via *${payment_method}* telah TERKONFIRMASI LUNAS secara otomatis oleh Payment Gateway.\n\nNo. Kuitansi: ${txnNumber}\nRef PG: ${order_id}\n\nSalam,\nSekolah Cendekia Lamongan`;
 
     if (invoice.parent_phone) {
-      await run(
-        `INSERT INTO wa_logs (recipient_phone, recipient_name, message, type, status) VALUES (?, ?, ?, 'PaymentSuccess', 'Sent')`,
-        [invoice.parent_phone, invoice.father_name || invoice.student_name, waMsg]
-      );
+      await sendWhatsApp(invoice.parent_phone, invoice.father_name || invoice.student_name, waMsg, 'PaymentSuccessGateway');
     }
 
     await logAudit(1, 'Payment Gateway Webhook', 'system', 'PG_CALLBACK_SUCCESS', 'GATEWAY', `Payment Gateway callback processed Rp ${payAmount} for invoice ${invoice.invoice_number}`);

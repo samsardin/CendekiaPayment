@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, get, run } = require('../database/db');
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { logAudit } = require('../middleware/auditMiddleware');
+const { sendWhatsApp } = require('../utils/whatsapp');
 
 // Get payment transactions with period filters (Harian, Pekanan, Bulanan)
 router.get('/', verifyToken, async (req, res) => {
@@ -184,15 +185,12 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'or
     // Default cash account increment
     await run(`UPDATE accounts SET balance = balance + ? WHERE code = '101.01'`, [totalPaidInTxn]);
 
-    // Send WhatsApp notification log
+    // Send WhatsApp notification
     const monthStr = paidMonthList.join(', ');
-    const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name}* an. *${firstInv.student_name}* (${monthStr}) sebesar *Rp ${totalPaidInTxn.toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Transaksi: ${txnNumber}\nKwitansi Digital: http://localhost:5173/receipt/${mainPaymentId}\n\nSalam,\nSekolah Cendekia Lamongan`;
+    const waMessage = `Assalamu'alaikum Yth. ${firstInv.father_name || 'Orang Tua'},\n\nTerima kasih, pembayaran *${firstInv.post_name}* an. *${firstInv.student_name}* (${monthStr}) sebesar *Rp ${totalPaidInTxn.toLocaleString('id-ID')}* via *${payment_method}* telah BERHASIL (${overallStatus.toUpperCase()}).\n\nNo. Kuitansi: ${txnNumber}\n\nSalam,\nSekolah Cendekia Lamongan`;
 
     if (firstInv.parent_phone) {
-      await run(
-        `INSERT INTO wa_logs (recipient_phone, recipient_name, message, type, status) VALUES (?, ?, ?, 'PaymentSuccess', 'Sent')`,
-        [firstInv.parent_phone, firstInv.father_name || firstInv.student_name, waMessage]
-      );
+      await sendWhatsApp(firstInv.parent_phone, firstInv.father_name || firstInv.student_name, waMessage, 'PaymentSuccess');
     }
 
     await logAudit(
