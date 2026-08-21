@@ -20,8 +20,9 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data.user);
         localStorage.setItem('cp_token', res.data.token);
         localStorage.setItem('cp_user', JSON.stringify(res.data.user));
-        return { success: true };
+        return { success: true, user: res.data.user };
       }
+      return { success: false, error: res.data.error || 'Login gagal' };
     } catch (err) {
       return { success: false, error: err.response?.data?.error || 'Login gagal' };
     } finally {
@@ -39,10 +40,12 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data.user);
         localStorage.setItem('cp_token', res.data.token);
         localStorage.setItem('cp_user', JSON.stringify(res.data.user));
-        return { success: true };
+        return { success: true, user: res.data.user };
       }
+      return { success: false, error: res.data.error || 'Demo login gagal' };
     } catch (err) {
       console.error('Demo switch failed:', err);
+      return { success: false, error: err.response?.data?.error || 'Demo login gagal' };
     } finally {
       setLoading(false);
     }
