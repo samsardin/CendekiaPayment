@@ -2,7 +2,10 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.resolve(__dirname, '../../cendekiapayment.db');
+const dbPath = process.env.VERCEL
+  ? path.join('/tmp', 'cendekiapayment.db')
+  : path.resolve(__dirname, '../../cendekiapayment.db');
+
 const db = new sqlite3.Database(dbPath);
 
 // Helper for promise-based queries

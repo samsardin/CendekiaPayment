@@ -22,6 +22,19 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+let isSeeded = false;
+app.use(async (req, res, next) => {
+  if (process.env.VERCEL && !isSeeded) {
+    try {
+      await seedData();
+      isSeeded = true;
+    } catch (err) {
+      console.error('Vercel DB auto-seed error:', err);
+    }
+  }
+  next();
+});
+
 // Register API Endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
