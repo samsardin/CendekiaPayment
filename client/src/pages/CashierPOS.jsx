@@ -707,13 +707,69 @@ export default function CashierPOS() {
                     )}
                   </div>
 
-                  {/* Total Amount Display */}
-                  <div className="p-4 bg-emerald-950/80 rounded-2xl border border-emerald-500/30 space-y-1">
-                    <p className="text-[11px] text-emerald-300 font-bold uppercase tracking-wider">Total Yang Harus Dibayar</p>
-                    <p className="text-2xl font-black text-emerald-400 tracking-tight">
-                      Rp {parseFloat(payAmount || 0).toLocaleString('id-ID')}
-                    </p>
-                  </div>
+                  {/* Total Amount Display / Editable Installment Amount Input */}
+                  {selectedInvoices.length === 1 && !selectedInvoices[0].month_period?.includes('-') ? (
+                    <div className="p-3.5 bg-amber-950/50 rounded-2xl border border-amber-500/50 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                        <span>Nominal Pembayaran / Angsuran (Rp):</span>
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 uppercase">
+                          Bisa Dicicil
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-extrabold text-amber-400 text-sm">Rp</span>
+                        <input
+                          type="number"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="Ketik jumlah angsuran yang ingin dibayar"
+                          className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-amber-400/60 rounded-xl font-extrabold text-white text-base focus:ring-2 focus:ring-amber-500/30"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+                        <span className="text-slate-400 font-medium">Preset Cepat:</span>
+                        <button
+                          type="button"
+                          onClick={() => setPayAmount('1000000')}
+                          className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold rounded border border-amber-500/30"
+                        >
+                          1 Juta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPayAmount('2000000')}
+                          className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold rounded border border-amber-500/30"
+                        >
+                          2 Juta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPayAmount('2500000')}
+                          className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold rounded border border-amber-500/30"
+                        >
+                          2,5 Juta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rem = Math.max(0, selectedInvoices[0].nominal - selectedInvoices[0].discount_amount - selectedInvoices[0].paid_amount);
+                            setPayAmount(rem.toString());
+                          }}
+                          className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold rounded border border-emerald-500/30"
+                        >
+                          Lunas Sisa (Rp {Math.max(0, selectedInvoices[0].nominal - selectedInvoices[0].discount_amount - selectedInvoices[0].paid_amount).toLocaleString('id-ID')})
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-emerald-950/80 rounded-2xl border border-emerald-500/30 space-y-1">
+                      <p className="text-[11px] text-emerald-300 font-bold uppercase tracking-wider">Total Yang Harus Dibayar</p>
+                      <p className="text-2xl font-black text-emerald-400 tracking-tight">
+                        Rp {parseFloat(payAmount || 0).toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Payment Form */}
                   <form onSubmit={handleProcessPayment} className="space-y-4">
