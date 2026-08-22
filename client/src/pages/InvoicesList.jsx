@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import * as XLSX from 'xlsx';
 import { 
   Receipt, 
   Search, 
@@ -26,6 +27,7 @@ import {
   Printer,
   FileText,
   Download,
+  Upload,
   CheckSquare,
   Square
 } from 'lucide-react';
@@ -133,6 +135,14 @@ export default function InvoicesList() {
   const [exportInvoices, setExportInvoices] = useState([]);
   const [exportSelectedInvoiceIds, setExportSelectedInvoiceIds] = useState([]);
   const [exportLoading, setExportLoading] = useState(false);
+
+  // EXCEL IMPORT & EXPORT STATES
+  const [showImportExcelModal, setShowImportExcelModal] = useState(false);
+  const [excelImportFile, setExcelImportFile] = useState(null);
+  const [excelParsedItems, setExcelParsedItems] = useState([]);
+  const [excelImportLoading, setExcelImportLoading] = useState(false);
+  const [excelImportResult, setExcelImportResult] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchInvoices();
@@ -786,6 +796,169 @@ export default function InvoicesList() {
     printWin.document.close();
   };
 
+  // ================= EXCEL EXPORT & IMPORT HANDLERS =================
+  const handleExportAllInvoicesExcel = () => {
+    if (invoices.length === 0) {
+      alert('Tidak ada data tagihan untuk di-export.');
+      return;
+    }
+
+    const rows = invoices.map((inv, idx) => ({
+      'No': idx + 1,
+      'No. Tagihan': inv.invoice_number || '-',
+      'NIS': inv.nis || '-',
+      'Nama Siswa': inv.student_name || '-',
+      'Jenjang / Unit': inv.unit_name || '-',
+      'Kelas': inv.class_name || '-',
+      'Pos Pembayaran': inv.post_name || '-',
+      'Periode Bulan': inv.month_period ? formatMonthPeriodIndo(inv.month_period) : '-',
+      'Kode Bulan': inv.month_period || '',
+      'Jatuh Tempo': inv.due_date || '-',
+      'Nominal Tagihan (Rp)': Number(inv.nominal || 0),
+      'Potongan (Rp)': Number(inv.discount_amount || 0),
+      'Sudah Dibayar (Rp)': Number(inv.paid_amount || 0),
+      'Sisa Piutang (Rp)': Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0)),
+      'Status': inv.status || 'Belum Dibayar'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Tagihan');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `Data_Tagihan_Siswa_Cendekia_${dateStr}.xlsx`);
+  };
+
+  const handleExportStudentExcel = (student, invList) => {
+    if (!student || !invList || invList.length === 0) {
+      alert('Tidak ada data tagihan siswa untuk di-export.');
+      return;
+    }
+
+    const rows = invList.map((inv, idx) => ({
+      'No': idx + 1,
+      'NIS': student.nis || '-',
+      'Nama Siswa': student.name || '-',
+      'Jenjang': student.unit_name || '-',
+      'Kelas': student.class_name || '-',
+      'Pos Pembayaran': inv.post_name || '-',
+      'Periode Bulan': inv.month_period ? formatMonthPeriodIndo(inv.month_period) : (inv.post_type || 'Biaya Khusus'),
+      'Nominal Tagihan (Rp)': Number(inv.nominal || 0),
+      'Potongan (Rp)': Number(inv.discount_amount || 0),
+      'Sudah Dibayar (Rp)': Number(inv.paid_amount || 0),
+      'Sisa Piutang (Rp)': Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0)),
+      'Status': inv.status || 'Belum Dibayar'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rincian Tagihan');
+
+    const cleanName = (student.name || 'Siswa').replace(/\s+/g, '_');
+    XLSX.writeFile(workbook, `Tagihan_${student.nis}_${cleanName}.xlsx`);
+  };
+
+  const handleDownloadInvoiceTemplateExcel = () => {
+    const templateRows = [
+      {
+        'NIS': '26001',
+        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
+        'Pos Pembayaran': 'SPP',
+        'Bulan / Periode': 'Juli 2026',
+        'Nominal Tagihan': 450000,
+        'Potongan': 0,
+        'Sudah Dibayar': 450000,
+        'Keterangan': 'Contoh SPP Lunas (Semester 1)'
+      },
+      {
+        'NIS': '26001',
+        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
+        'Pos Pembayaran': 'SPP',
+        'Bulan / Periode': 'Agustus 2026',
+        'Nominal Tagihan': 450000,
+        'Potongan': 0,
+        'Sudah Dibayar': 0,
+        'Keterangan': 'Contoh SPP Belum Bayar'
+      },
+      {
+        'NIS': '26001',
+        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
+        'Pos Pembayaran': 'Infaq Pembangunan SDIT',
+        'Bulan / Periode': '',
+        'Nominal Tagihan': 4500000,
+        'Potongan': 500000,
+        'Sudah Dibayar': 4000000,
+        'Keterangan': 'Contoh Non-SPP (Infaq Gedung)'
+      },
+      {
+        'NIS': '26002',
+        'Nama Siswa': 'Fatimah Az-Zahra',
+        'Pos Pembayaran': 'SPP',
+        'Bulan / Periode': 'Juli 2026',
+        'Nominal Tagihan': 350000,
+        'Potongan': 0,
+        'Sudah Dibayar': 350000,
+        'Keterangan': 'Contoh Siswa KBTK'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Import Tagihan');
+
+    XLSX.writeFile(workbook, 'Template_Import_Tagihan_Cendekia.xlsx');
+  };
+
+  const handleExcelFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setExcelImportFile(file);
+    setExcelImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        if (data.length === 0) {
+          alert('File Excel kosong atau tidak memiliki data.');
+          setExcelParsedItems([]);
+          return;
+        }
+        setExcelParsedItems(data);
+      } catch (err) {
+        console.error('Parse Excel error:', err);
+        alert('Gagal membaca file Excel. Pastikan format file .xlsx atau .xls valid.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleExecuteImportExcel = async () => {
+    if (excelParsedItems.length === 0) {
+      alert('Pilih file Excel yang memiliki baris data terlebih dahulu.');
+      return;
+    }
+
+    setExcelImportLoading(true);
+    setExcelImportResult(null);
+    try {
+      const res = await api.post('/invoices/import-excel', { items: excelParsedItems });
+      if (res.data.success) {
+        setExcelImportResult(res.data);
+        fetchInvoices();
+      }
+    } catch (err) {
+      console.error('Submit import excel error:', err);
+      alert(err.response?.data?.error || err.message || 'Gagal import tagihan dari Excel');
+    } finally {
+      setExcelImportLoading(false);
+    }
+  };
+
   const filteredExportStudents = exportStudentsList.filter(s => 
     (s.name || '').toLowerCase().includes(exportStudentSearch.toLowerCase()) ||
     (s.nis || '').toLowerCase().includes(exportStudentSearch.toLowerCase())
@@ -796,36 +969,61 @@ export default function InvoicesList() {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Daftar Tagihan & Piutang Siswa</h1>
-          <p className="text-xs text-slate-500">Kelola tagihan SPP bulanan, biaya masuk, seragam & atur tarif khusus/beasiswa per siswa</p>
+          <h1 className="text-2xl font-bold text-slate-800">Daftar Tagihan &amp; Piutang Siswa</h1>
+          <p className="text-xs text-slate-500">Kelola tagihan SPP bulanan, biaya masuk, seragam &amp; atur tarif khusus/beasiswa per siswa</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* IMPORT EXCEL BUTTON */}
+          <button
+            onClick={() => {
+              setShowImportExcelModal(true);
+              setExcelImportFile(null);
+              setExcelParsedItems([]);
+              setExcelImportResult(null);
+            }}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            title="Import data tagihan siswa dari file Excel (.xlsx)"
+          >
+            <Upload className="w-4 h-4" />
+            <span>📥 Import Excel (.xlsx)</span>
+          </button>
+
+          {/* EXPORT EXCEL BUTTON */}
+          <button
+            onClick={handleExportAllInvoicesExcel}
+            className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            title="Export semua data tagihan siswa ke file Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>📊 Export Excel (.xlsx)</span>
+          </button>
+
           {/* EXPORT TAGIHAN SISWA PDF BUTTON (AVAILABLE FOR KASIR, ADMIN & SUPERADMIN) */}
           <button
             onClick={() => handleOpenExportPdfModal()}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             title="Export dan Cetak Lembar Rincian Tagihan Siswa (Semua Pos) ke format PDF"
           >
             <FileText className="w-4 h-4" />
-            <span>📄 Export Tagihan Siswa (PDF)</span>
+            <span>📄 Cetak PDF Tagihan Siswa</span>
           </button>
 
           {isAdminOrSuperAdmin && (
             <>
               <button
                 onClick={handleOpenCustomSppWizard}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>⚡ Set Tarif Khusus Semua Pos / SPP Per-Bulan</span>
+                <span>⚡ Set Tarif Khusus</span>
               </button>
 
               <button
                 onClick={() => setShowGenerateModal(true)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>Generate Tagihan Baru</span>
+                <span>Generate Tagihan</span>
               </button>
             </>
           )}
@@ -1678,7 +1876,7 @@ export default function InvoicesList() {
                 )}
 
                 {/* Footer Modal Actions */}
-                <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowExportPdfModal(false)}
@@ -1687,18 +1885,185 @@ export default function InvoicesList() {
                     Tutup
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handlePrintOrDownloadPdf}
-                    disabled={exportSelectedInvoiceIds.length === 0}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>🖨️ Cetak / Simpan PDF Lembar Tagihan Sekarang</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* EXPORT STUDENT EXCEL */}
+                    <button
+                      type="button"
+                      onClick={() => handleExportStudentExcel(exportStudent, exportInvoices.filter(i => exportSelectedInvoiceIds.includes(i.id)))}
+                      disabled={exportSelectedInvoiceIds.length === 0}
+                      className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                      title="Export seluruh pos tagihan siswa ini ke format Excel .xlsx"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>📊 Export ke Excel (.xlsx)</span>
+                    </button>
+
+                    {/* PRINT PDF */}
+                    <button
+                      type="button"
+                      onClick={handlePrintOrDownloadPdf}
+                      disabled={exportSelectedInvoiceIds.length === 0}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>🖨️ Cetak / Simpan PDF</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: IMPORT DATA TAGIHAN EXCEL (.XLSX) ================= */}
+      {showImportExcelModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 lg:p-8 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-600/20">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg">Import Tagihan Siswa (Excel .xlsx)</h3>
+                  <p className="text-xs text-slate-500">Migrasikan rekap tagihan &amp; pembayaran dari Excel ke database aplikasi</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImportExcelModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Panduan Alur Database Siswa */}
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+              <div className="font-extrabold flex items-center gap-1.5 text-amber-950">
+                <span>💡 Petunjuk Penting Sebelum Import:</span>
+              </div>
+              <p className="leading-relaxed">
+                1. <strong>Pastikan data siswa (NIS &amp; Nama Siswa) sudah di-import/terdaftar terlebih dahulu di menu <span className="underline font-bold">Data Siswa</span>.</strong>
+              </p>
+              <p className="leading-relaxed">
+                2. Sistem mencocokkan tagihan berdasarkan <strong>NIS Siswa</strong>. Jika tagihan pos tersebut sudah ada, sistem akan <strong>memperbarui nominal &amp; status pembayarannya</strong>. Jika belum ada, sistem akan <strong>membuatkan tagihan baru secara otomatis</strong>.
+              </p>
+            </div>
+
+            {/* Download Template Button */}
+            <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div>
+                <h4 className="font-bold text-slate-800 text-xs">Belum punya format Excel yang sesuai?</h4>
+                <p className="text-[11px] text-slate-500">Unduh template standar Excel yang sudah dilengkapi contoh pengisian</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadInvoiceTemplateExcel}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Download Template .xlsx</span>
+              </button>
+            </div>
+
+            {/* File Upload Dropzone */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">Pilih File Excel (.xlsx / .xls):</label>
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/70 p-6 rounded-2xl text-center cursor-pointer transition-all space-y-2"
+              >
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleExcelFileChange}
+                  accept=".xlsx, .xls" 
+                  className="hidden" 
+                />
+                <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold text-slate-800">
+                    {excelImportFile ? excelImportFile.name : 'Klik untuk memilih file Excel dari komputer'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Format file yang didukung: .xlsx atau .xls</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Parsed Items Summary Preview */}
+            {excelParsedItems.length > 0 && !excelImportResult && (
+              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>{excelParsedItems.length} baris data tagihan</strong> siap untuk di-import.</span>
+                </div>
+                <span className="font-mono text-[11px] text-emerald-700 font-bold bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                  Ready to Import
+                </span>
+              </div>
+            )}
+
+            {/* Import Result Notification */}
+            {excelImportResult && (
+              <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs animate-in fade-in">
+                <div className="flex items-center gap-2 text-emerald-700 font-extrabold text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <span>{excelImportResult.message}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="p-2 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Dibuat Baru</span>
+                    <span className="font-extrabold text-emerald-600 text-sm">{excelImportResult.createdCount || 0}</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Diperbarui</span>
+                    <span className="font-extrabold text-indigo-600 text-sm">{excelImportResult.updatedCount || 0}</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Dilewati</span>
+                    <span className="font-extrabold text-amber-600 text-sm">{excelImportResult.skippedCount || 0}</span>
+                  </div>
+                </div>
+
+                {excelImportResult.errors && excelImportResult.errors.length > 0 && (
+                  <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 space-y-1 text-[11px]">
+                    <span className="font-bold block">Catatan Baris yang Dilewati:</span>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {excelImportResult.errors.map((errStr, idx) => (
+                        <li key={idx}>{errStr}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowImportExcelModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                {excelImportResult ? 'Selesai & Tutup' : 'Batal'}
+              </button>
+
+              {!excelImportResult && (
+                <button
+                  type="button"
+                  onClick={handleExecuteImportExcel}
+                  disabled={excelImportLoading || excelParsedItems.length === 0}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>{excelImportLoading ? 'Memproses Import...' : 'Mulai Import ke Database'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
