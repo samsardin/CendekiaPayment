@@ -33,25 +33,25 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
       ]
     },
     {
-      title: 'TRANSAKSI & TAGIHAN',
+      title: 'TRANSAKSI & KEUANGAN',
       items: [
         { name: 'Daftar Tagihan', path: '/invoices', icon: Receipt, roles: ['superadmin', 'admin', 'kasir'] },
-        { name: 'Pengeluaran (Expense)', path: '/expenses', icon: TrendingDown, roles: ['superadmin', 'admin'] }
+        { name: 'Pengeluaran (Expense)', path: '/expenses', icon: TrendingDown, roles: ['superadmin', 'admin'] },
+        { name: 'Laporan Keuangan', path: '/reports', icon: FilePieChart, roles: ['superadmin', 'admin'] }
       ]
     },
     {
       title: 'MASTER DATA',
       items: [
         { name: 'Data Siswa & Mutasi', path: '/students', icon: GraduationCap, roles: ['superadmin', 'admin', 'kasir'] },
-        { name: 'Master Pos Pembayaran', path: '/pos-settings', icon: BookOpenCheck, roles: ['superadmin', 'admin'] },
-        { name: 'Akun Keuangan (GL)', path: '/accounts', icon: Building2, roles: ['superadmin', 'admin'] }
+        { name: 'Akun Keuangan (GL)', path: '/accounts', icon: Building2, roles: ['superadmin', 'admin'] },
+        { name: 'Master Pos Pembayaran', path: '/pos-settings', icon: BookOpenCheck, roles: ['superadmin', 'admin'] }
       ]
     },
     {
-      title: 'INTEGRASI & SISTEM',
+      title: 'PENGATURAN & SISTEM',
       items: [
         { name: 'Payment & WA Gateway', path: '/gateway', icon: Smartphone, roles: ['superadmin', 'admin'] },
-        { name: 'Laporan Keuangan', path: '/reports', icon: FilePieChart, roles: ['superadmin', 'admin'] },
         { name: 'Audit Trail (Logs)', path: '/audit-logs', icon: History, roles: ['superadmin', 'admin'] },
         { name: 'Pemeliharaan Database', path: '/database-maintenance', icon: Database, roles: ['superadmin', 'admin'] }
       ]
