@@ -19,7 +19,9 @@ import {
   BookOpen,
   FileText,
   Building,
-  Check
+  Check,
+  Scale,
+  DollarSign
 } from 'lucide-react';
 
 const formatRupiah = (val) => {
@@ -30,8 +32,9 @@ const formatRupiah = (val) => {
 };
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'ledger', 'by-post', 'by-class'
+  const [activeTab, setActiveTab] = useState('summary'); // 'summary', 'income-statement', 'ledger', 'by-post', 'by-class'
   const [summary, setSummary] = useState(null);
+  const [incomeStatement, setIncomeStatement] = useState(null);
   const [byPost, setByPost] = useState([]);
   const [byClass, setByClass] = useState([]);
   const [units, setUnits] = useState([]);
@@ -39,6 +42,7 @@ export default function Reports() {
 
   // Filters
   const [selectedUnit, setSelectedUnit] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   // Kartu Piutang Search
   const [students, setStudents] = useState([]);
@@ -49,26 +53,32 @@ export default function Reports() {
 
   // Print & Export Modal State
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printType, setPrintType] = useState('summary'); // 'summary', 'by-post', 'by-class', 'ledger'
+  const [printType, setPrintType] = useState('summary'); // 'summary', 'income-statement', 'by-post', 'by-class', 'ledger'
 
   const printAreaRef = useRef(null);
 
   useEffect(() => {
     fetchReportSummary();
-  }, [selectedUnit]);
+  }, [selectedUnit, selectedMonth]);
 
   const fetchReportSummary = async () => {
     setLoading(true);
     try {
-      const unitQuery = selectedUnit ? `?unit_id=${selectedUnit}` : '';
-      const [sumRes, postRes, classRes, unitRes] = await Promise.all([
-        api.get(`/reports/summary${unitQuery}`),
-        api.get(`/reports/by-post${unitQuery}`),
-        api.get(`/reports/by-class${unitQuery}`),
+      const params = [];
+      if (selectedUnit) params.push(`unit_id=${selectedUnit}`);
+      if (selectedMonth) params.push(`month_period=${selectedMonth}`);
+      const queryStr = params.length > 0 ? `?${params.join('&')}` : '';
+
+      const [sumRes, incRes, postRes, classRes, unitRes] = await Promise.all([
+        api.get(`/reports/summary${queryStr}`),
+        api.get(`/reports/income-statement${queryStr}`),
+        api.get(`/reports/by-post${queryStr}`),
+        api.get(`/reports/by-class${queryStr}`),
         api.get('/master/units')
       ]);
 
       if (sumRes.data.success) setSummary(sumRes.data);
+      if (incRes.data.success) setIncomeStatement(incRes.data.data);
       if (postRes.data.success) setByPost(postRes.data.data);
       if (classRes.data.success) setByClass(classRes.data.data);
       if (unitRes.data.success) setUnits(unitRes.data.data);
@@ -123,7 +133,7 @@ export default function Reports() {
   });
 
   const getSelectedUnitName = () => {
-    if (!selectedUnit) return 'Semua Unit (KBTK & SDIT)';
+    if (!selectedUnit) return 'Semua Jenjang (KBTK & SDIT)';
     const found = units.find(u => String(u.id) === String(selectedUnit));
     return found ? `${found.name} (${found.code})` : 'Unit Terpilih';
   };
@@ -146,7 +156,7 @@ export default function Reports() {
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-              Rekap penerimaan kas, buku pembantu piutang siswa, laporan per pos dan per kelas
+              Laporan laba rugi, rekap penerimaan kas, buku pembantu piutang siswa, per pos dan per kelas
             </p>
           </div>
         </div>
@@ -173,11 +183,12 @@ export default function Reports() {
       </div>
 
       {/* Navigation Sub-Tabs & Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200 shadow-xs">
         {/* Navigation Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto p-1">
           {[
             { id: 'summary', label: 'Ringkasan Keuangan' },
+            { id: 'income-statement', label: 'Laporan Laba Rugi (Aktivitas)' },
             { id: 'ledger', label: 'Kartu Piutang Siswa' },
             { id: 'by-post', label: 'Laporan Per Pos' },
             { id: 'by-class', label: 'Laporan Per Kelas' }
@@ -196,21 +207,44 @@ export default function Reports() {
           ))}
         </div>
 
-        {/* Filter Jenjang Sekolah */}
-        <div className="flex items-center gap-2 px-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Jenjang:</span>
-          <select
-            value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
-          >
-            <option value="">Semua Jenjang (KBTK &amp; SDIT)</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.code})
-              </option>
-            ))}
-          </select>
+        {/* Filter Controls: Periode Bulan & Jenjang Sekolah */}
+        <div className="flex items-center gap-2.5 px-1 flex-wrap">
+          {/* Filter Bulan */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Periode:</span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+            />
+            {selectedMonth && (
+              <button
+                onClick={() => setSelectedMonth('')}
+                className="text-[10px] text-slate-400 hover:text-rose-600 font-bold"
+                title="Reset Bulan"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Filter Jenjang */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jenjang:</span>
+            <select
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+            >
+              <option value="">Semua Jenjang</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.code}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -300,7 +334,154 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ================= TAB 2: KARTU PIUTANG SISWA ================= */}
+      {/* ================= TAB 2: LAPORAN LABA RUGI (INCOME STATEMENT) ================= */}
+      {activeTab === 'income-statement' && (
+        <div className="space-y-6">
+          {loading ? (
+            <div className="p-12 text-center text-slate-400 text-xs font-medium flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+              <span>Memuat Laporan Laba Rugi...</span>
+            </div>
+          ) : incomeStatement ? (
+            <div className="space-y-6">
+              {/* Top 3 Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-3xl p-5 border border-emerald-200 shadow-sm flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Pendapatan (A)</span>
+                    <h3 className="text-2xl font-black text-emerald-800">{formatRupiah(incomeStatement.totalRevenues)}</h3>
+                    <p className="text-[10px] text-emerald-600 font-medium">Dari pembayaran SPP, infaq &amp; dana masuk</p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl p-5 border border-rose-200 shadow-sm flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Beban Operasional (B)</span>
+                    <h3 className="text-2xl font-black text-rose-800">{formatRupiah(incomeStatement.totalExpenses)}</h3>
+                    <p className="text-[10px] text-rose-600 font-medium">Dari pengeluaran gaji &amp; belanja sekolah</p>
+                  </div>
+                  <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+                    <TrendingDown className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className={`rounded-3xl p-5 border shadow-sm flex items-center justify-between ${
+                  incomeStatement.isSurplus ? 'bg-slate-900 text-white border-slate-800' : 'bg-rose-900 text-white border-rose-800'
+                }`}>
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {incomeStatement.isSurplus ? 'Surplus Bersih (A - B)' : 'Defisit Bersih (A - B)'}
+                    </span>
+                    <h3 className={`text-2xl font-black ${incomeStatement.isSurplus ? 'text-emerald-400' : 'text-rose-300'}`}>
+                      {formatRupiah(incomeStatement.netIncome)}
+                    </h3>
+                    <p className="text-[10px] text-slate-300 font-medium">
+                      {incomeStatement.isSurplus ? '🟢 Keuangan Sekolah Mengalami Surplus' : '🔴 Keuangan Sekolah Mengalami Defisit'}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-white/10 rounded-2xl">
+                    <Scale className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Breakdown Tables (Pendapatan vs Beban) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 1. Pendapatan Table */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+                  <div className="p-4 sm:p-5 border-b border-emerald-100 bg-emerald-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">1. Pendapatan Operasional &amp; Non-Operasional</h4>
+                        <p className="text-[11px] text-slate-500">Penerimaan dana kas &amp; bank</p>
+                      </div>
+                    </div>
+                    <span className="font-black text-emerald-800 text-sm">{formatRupiah(incomeStatement.totalRevenues)}</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                          <th className="py-2.5 px-4">Kode</th>
+                          <th className="py-2.5 px-4">Nama Pos Pendapatan</th>
+                          <th className="py-2.5 px-4 text-center">Txn</th>
+                          <th className="py-2.5 px-4 text-right">Nominal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        {incomeStatement.revenues.length === 0 ? (
+                          <tr><td colSpan="4" className="py-6 text-center text-slate-400">Belum ada data pendapatan.</td></tr>
+                        ) : (
+                          incomeStatement.revenues.map((r, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80">
+                              <td className="py-3 px-4 font-mono font-bold text-slate-500">{r.account_code}</td>
+                              <td className="py-3 px-4 font-bold text-slate-900">{r.account_name}</td>
+                              <td className="py-3 px-4 text-center">{r.transaction_count}</td>
+                              <td className="py-3 px-4 text-right font-black text-emerald-700">{formatRupiah(r.total_amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2. Beban Table */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+                  <div className="p-4 sm:p-5 border-b border-rose-100 bg-rose-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-rose-100 text-rose-800 rounded-xl">
+                        <TrendingDown className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">2. Beban Pengeluaran Operasional</h4>
+                        <p className="text-[11px] text-slate-500">Biaya gaji, belanja &amp; pemeliharaan</p>
+                      </div>
+                    </div>
+                    <span className="font-black text-rose-800 text-sm">{formatRupiah(incomeStatement.totalExpenses)}</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                          <th className="py-2.5 px-4">Kode</th>
+                          <th className="py-2.5 px-4">Kategori Beban</th>
+                          <th className="py-2.5 px-4 text-center">Txn</th>
+                          <th className="py-2.5 px-4 text-right">Nominal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        {incomeStatement.expenses.length === 0 ? (
+                          <tr><td colSpan="4" className="py-6 text-center text-slate-400">Belum ada catatan pengeluaran disetujui.</td></tr>
+                        ) : (
+                          incomeStatement.expenses.map((e, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80">
+                              <td className="py-3 px-4 font-mono font-bold text-slate-500">{e.account_code}</td>
+                              <td className="py-3 px-4 font-bold text-slate-900">{e.account_name}</td>
+                              <td className="py-3 px-4 text-center">{e.expense_count}</td>
+                              <td className="py-3 px-4 text-right font-black text-rose-700">{formatRupiah(e.total_amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* ================= TAB 3: KARTU PIUTANG SISWA ================= */}
       {activeTab === 'ledger' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7 space-y-6">
           <div className="space-y-2">
@@ -423,7 +604,7 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ================= TAB 3: LAPORAN PER POS ================= */}
+      {/* ================= TAB 4: LAPORAN PER POS ================= */}
       {activeTab === 'by-post' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -477,7 +658,7 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ================= TAB 4: LAPORAN PER KELAS ================= */}
+      {/* ================= TAB 5: LAPORAN PER KELAS ================= */}
       {activeTab === 'by-class' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -553,6 +734,7 @@ export default function Reports() {
                   className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
                 >
                   <option value="summary">Ringkasan Keuangan</option>
+                  <option value="income-statement">Laporan Laba Rugi</option>
                   <option value="by-post">Laporan Per Pos</option>
                   <option value="by-class">Laporan Per Kelas</option>
                   {studentLedger && <option value="ledger">Kartu Piutang Siswa</option>}
@@ -595,12 +777,13 @@ export default function Reports() {
               <div className="text-center space-y-1 py-2">
                 <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-slate-900 underline decoration-2 underline-offset-4">
                   {printType === 'summary' && 'LAPORAN RINGKASAN KEUANGAN SEKOLAH'}
+                  {printType === 'income-statement' && 'LAPORAN LABA RUGI / AKTIVITAS KEUANGAN (INCOME STATEMENT)'}
                   {printType === 'by-post' && 'LAPORAN REKAPITULASI PEMBAYARAN PER POS'}
                   {printType === 'by-class' && 'LAPORAN REKAPITULASI KEUANGAN PER KELAS'}
                   {printType === 'ledger' && 'KARTU PEMBANTU PIUTANG SISWA'}
                 </h2>
                 <p className="text-xs text-slate-600">
-                  Unit: <strong>{getSelectedUnitName()}</strong> &bull; Per Tanggal: <strong>{todayFormatted}</strong>
+                  Unit: <strong>{getSelectedUnitName()}</strong> &bull; {selectedMonth ? `Bulan: ${selectedMonth} • ` : ''}Per Tanggal: <strong>{todayFormatted}</strong>
                 </p>
               </div>
 
@@ -654,6 +837,82 @@ export default function Reports() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {printType === 'income-statement' && incomeStatement && (
+                <div className="space-y-6">
+                  {/* 1. Pendapatan */}
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-emerald-800">1. PENDAPATAN OPERASIONAL &amp; NON-OPERASIONAL</h4>
+                    <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                          <th className="p-2.5 border-r border-slate-300 w-16">Kode</th>
+                          <th className="p-2.5 border-r border-slate-300">Pos / Rekening Pendapatan</th>
+                          <th className="p-2.5 border-r border-slate-300 text-center w-20">Transaksi</th>
+                          <th className="p-2.5 text-right w-36">Jumlah Nominal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {incomeStatement.revenues.map((r, idx) => (
+                          <tr key={idx}>
+                            <td className="p-2 border-r border-slate-200 font-mono">{r.account_code}</td>
+                            <td className="p-2 border-r border-slate-200 font-semibold">{r.account_name}</td>
+                            <td className="p-2 border-r border-slate-200 text-center">{r.transaction_count}</td>
+                            <td className="p-2 text-right font-mono font-bold text-emerald-800">{formatRupiah(r.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-emerald-50/80 border-t-2 border-emerald-300 font-black">
+                          <td colSpan="3" className="p-2 text-right uppercase">TOTAL PENDAPATAN (A):</td>
+                          <td className="p-2 text-right font-mono text-emerald-950 font-black">{formatRupiah(incomeStatement.totalRevenues)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* 2. Beban */}
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-rose-800">2. BEBAN &amp; PENGELUARAN OPERASIONAL</h4>
+                    <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                          <th className="p-2.5 border-r border-slate-300 w-16">Kode</th>
+                          <th className="p-2.5 border-r border-slate-300">Kategori Beban / Pengeluaran</th>
+                          <th className="p-2.5 border-r border-slate-300 text-center w-20">Transaksi</th>
+                          <th className="p-2.5 text-right w-36">Jumlah Nominal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {incomeStatement.expenses.map((e, idx) => (
+                          <tr key={idx}>
+                            <td className="p-2 border-r border-slate-200 font-mono">{e.account_code}</td>
+                            <td className="p-2 border-r border-slate-200 font-semibold">{e.account_name}</td>
+                            <td className="p-2 border-r border-slate-200 text-center">{e.expense_count}</td>
+                            <td className="p-2 text-right font-mono font-bold text-rose-800">{formatRupiah(e.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-rose-50/80 border-t-2 border-rose-300 font-black">
+                          <td colSpan="3" className="p-2 text-right uppercase">TOTAL BEBAN PENGELUARAN (B):</td>
+                          <td className="p-2 text-right font-mono text-rose-950 font-black">{formatRupiah(incomeStatement.totalExpenses)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* 3. Surplus / Defisit Bersih */}
+                  <div className="p-4 rounded-xl border-2 border-slate-900 bg-slate-100 flex items-center justify-between font-black text-sm">
+                    <span className="uppercase tracking-wider">
+                      {incomeStatement.isSurplus ? 'SURPLUS BERSIH OPERASIONAL (A - B):' : 'DEFISIT BERSIH OPERASIONAL (A - B):'}
+                    </span>
+                    <span className={`text-base font-mono ${incomeStatement.isSurplus ? 'text-emerald-900' : 'text-rose-900'}`}>
+                      {formatRupiah(incomeStatement.netIncome)}
+                    </span>
                   </div>
                 </div>
               )}

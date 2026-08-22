@@ -46,6 +46,98 @@ router.get('/summary', verifyToken, async (req, res) => {
   }
 });
 
+// Laporan Laba Rugi / Aktivitas Keuangan (Income Statement)
+router.get('/income-statement', verifyToken, async (req, res) => {
+  try {
+    const { unit_id, month_period } = req.query;
+
+    // 1. PENDAPATAN (REVENUES) dari payments
+    let paySql = `
+      SELECT 
+        COALESCE(a.code, '401.01') as account_code,
+        COALESCE(a.name, pp.name, 'Pendapatan Biaya Pendidikan') as account_name,
+        COALESCE(u.name, 'Semua Unit') as unit_name,
+        SUM(p.amount) as total_amount,
+        COUNT(p.id) as transaction_count
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id = i.id
+      LEFT JOIN payment_posts pp ON i.post_id = pp.id
+      LEFT JOIN accounts a ON pp.account_id = a.id
+      LEFT JOIN students s ON p.student_id = s.id
+      LEFT JOIN units u ON s.unit_id = u.id
+      WHERE p.status = 'Paid'
+    `;
+    const payParams = [];
+
+    if (unit_id) {
+      paySql += ` AND s.unit_id = ?`;
+      payParams.push(unit_id);
+    }
+    if (month_period) {
+      paySql += ` AND strftime('%Y-%m', p.payment_date) = ?`;
+      payParams.push(month_period);
+    }
+
+    paySql += ` GROUP BY COALESCE(a.code, '401.01'), COALESCE(a.name, pp.name, 'Pendapatan Biaya Pendidikan'), COALESCE(u.name, 'Semua Unit') ORDER BY total_amount DESC`;
+
+    const revenuesRaw = await query(paySql, payParams);
+    const revenues = (revenuesRaw || []).map(r => ({
+      account_code: r.account_code,
+      account_name: r.account_name,
+      unit_name: r.unit_name,
+      total_amount: Number(r.total_amount || 0),
+      transaction_count: Number(r.transaction_count || 0)
+    }));
+
+    // 2. BEBAN PENGELUARAN (EXPENSES) dari expenses
+    let expSql = `
+      SELECT 
+        COALESCE(a.code, '501.01') as account_code,
+        COALESCE(a.name, e.category, 'Beban Operasional') as account_name,
+        SUM(e.amount) as total_amount,
+        COUNT(e.id) as expense_count
+      FROM expenses e
+      LEFT JOIN accounts a ON e.account_id = a.id
+      WHERE e.status = 'Approved'
+    `;
+    const expParams = [];
+
+    if (month_period) {
+      expSql += ` AND strftime('%Y-%m', e.date) = ?`;
+      expParams.push(month_period);
+    }
+
+    expSql += ` GROUP BY COALESCE(a.code, '501.01'), COALESCE(a.name, e.category, 'Beban Operasional') ORDER BY total_amount DESC`;
+
+    const expensesRaw = await query(expSql, expParams);
+    const expenses = (expensesRaw || []).map(e => ({
+      account_code: e.account_code,
+      account_name: e.account_name,
+      total_amount: Number(e.total_amount || 0),
+      expense_count: Number(e.expense_count || 0)
+    }));
+
+    const totalRevenues = revenues.reduce((acc, r) => acc + r.total_amount, 0);
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.total_amount, 0);
+    const netIncome = totalRevenues - totalExpenses;
+    const isSurplus = netIncome >= 0;
+
+    res.json({
+      success: true,
+      data: {
+        revenues,
+        expenses,
+        totalRevenues,
+        totalExpenses,
+        netIncome,
+        isSurplus
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Kartu Piutang Siswa (Fitur 23.B)
 router.get('/student-ledger/:student_id', verifyToken, async (req, res) => {
   try {
