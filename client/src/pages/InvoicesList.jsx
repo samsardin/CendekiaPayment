@@ -501,39 +501,45 @@ export default function InvoicesList() {
 
     const dateStamp = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const sppRowsHtml = sppInvoices.map((inv, idx) => {
+    const sppSem1 = sppInvoices.slice(0, 6);
+    const sppSem2 = sppInvoices.slice(6, 12);
+
+    const renderSppRow = (inv, idx, offset = 0) => {
+      if (!inv) return '<tr><td colspan="6" style="padding: 3px; border: 1px solid #cbd5e1; color: #94a3b8; text-align: center;">-</td></tr>';
       const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
       const statusBg = inv.status === 'Lunas' ? '#dcfce7; color: #166534;' : remaining > 0 ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;';
+      const monthShort = inv.month_period ? inv.month_period : (inv.post_name || '-');
       return `
         <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-          <td style="font-weight: bold; padding: 6px; border: 1px solid #cbd5e1;">${inv.post_name} - ${inv.month_period || '-'}</td>
-          <td style="padding: 6px; border: 1px solid #cbd5e1; color: #64748b; font-size: 10px;">${inv.due_date || '10 Tiap Bulan'}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #059669;">${Number(inv.discount_amount || 0) > 0 ? '-Rp ' + Number(inv.discount_amount).toLocaleString('id-ID') : '-'}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #047857;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
-          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">
-            <span style="background: ${statusBg} padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9.5px; display: inline-block;">${inv.status}</span>
+          <td style="text-align: center; padding: 2.5px 3px; border: 1px solid #cbd5e1; font-weight: bold; width: 18px;">${idx + 1 + offset}</td>
+          <td style="padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 700;">${monthShort}</td>
+          <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 600;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; color: #047857; font-weight: 600;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
+          <td style="text-align: center; padding: 2.5px 3px; border: 1px solid #cbd5e1; width: 55px;">
+            <span style="background: ${statusBg} padding: 1.5px 5px; border-radius: 3px; font-weight: bold; font-size: 8px; display: inline-block;">${inv.status}</span>
           </td>
         </tr>
       `;
-    }).join('');
+    };
+
+    const sppSem1Html = sppSem1.map((inv, idx) => renderSppRow(inv, idx, 0)).join('');
+    const sppSem2Html = sppSem2.map((inv, idx) => renderSppRow(inv, idx, 6)).join('');
 
     const nonSppRowsHtml = nonSppInvoices.map((inv, idx) => {
       const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
       const statusBg = inv.status === 'Lunas' ? '#dcfce7; color: #166534;' : remaining > 0 ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;';
       return `
         <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-          <td style="font-weight: bold; padding: 6px; border: 1px solid #cbd5e1;">${inv.post_name}</td>
-          <td style="padding: 6px; border: 1px solid #cbd5e1; color: #64748b;">${inv.post_type || 'Biaya Khusus'}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #059669;">${Number(inv.discount_amount || 0) > 0 ? '-Rp ' + Number(inv.discount_amount).toLocaleString('id-ID') : '-'}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #047857;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
-          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
-          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">
-            <span style="background: ${statusBg} padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9.5px; display: inline-block;">${inv.status}</span>
+          <td style="text-align: center; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: bold; width: 22px;">${idx + 1}</td>
+          <td style="font-weight: 700; padding: 3px 6px; border: 1px solid #cbd5e1;">${inv.post_name}</td>
+          <td style="padding: 3px 6px; border: 1px solid #cbd5e1; color: #64748b; font-size: 8.5px;">${inv.post_type || 'Pos Khusus'}</td>
+          <td style="text-align: right; padding: 3px 6px; border: 1px solid #cbd5e1; font-weight: bold;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 3px 6px; border: 1px solid #cbd5e1; color: #059669;">${Number(inv.discount_amount || 0) > 0 ? '-Rp ' + Number(inv.discount_amount).toLocaleString('id-ID') : '-'}</td>
+          <td style="text-align: right; padding: 3px 6px; border: 1px solid #cbd5e1; color: #047857; font-weight: 600;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 3px 6px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
+          <td style="text-align: center; padding: 3px 4px; border: 1px solid #cbd5e1; width: 70px;">
+            <span style="background: ${statusBg} padding: 1.5px 5px; border-radius: 3px; font-weight: bold; font-size: 8px; display: inline-block;">${inv.status}</span>
           </td>
         </tr>
       `;
@@ -546,20 +552,21 @@ export default function InvoicesList() {
         <title>Tagihan_${student.nis}_${(student.name || 'Siswa').replace(/\\s+/g, '_')}</title>
         <meta charset="utf-8" />
         <style>
-          @page { size: A4 portrait; margin: 6mm 7mm; }
+          @page { size: A4 portrait; margin: 6mm 8mm; }
           * { box-sizing: border-box; }
           html, body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
             color: #0f172a; 
             margin: 0; 
             padding: 0; 
-            font-size: 10px;
+            font-size: 9.5px;
             line-height: 1.25;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .page-container {
-            padding: 10px 14px;
+            padding: 8px 12px;
+            width: 100%;
             max-width: 100%;
           }
           .btn-container { text-align: right; margin-bottom: 8px; }
@@ -574,32 +581,33 @@ export default function InvoicesList() {
             cursor: pointer; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
-          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 4px; margin-bottom: 6px; }
+          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 3px; margin-bottom: 6px; }
           .header h1 { margin: 0; font-size: 14.5px; font-weight: 900; letter-spacing: 0.3px; color: #0f172a; }
-          .header p { margin: 1px 0 0 0; font-size: 9.5px; color: #475569; }
-          .badge { display: inline-block; margin-top: 3px; background: #0f172a; color: white; padding: 2px 10px; border-radius: 9999px; font-weight: bold; font-size: 9px; letter-spacing: 0.3px; }
-          .student-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 5px 8px; border-radius: 6px; margin-bottom: 6px; font-size: 9.5px; }
-          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; text-align: center; }
+          .header p { margin: 1px 0 0 0; font-size: 9px; color: #475569; }
+          .badge { display: inline-block; margin-top: 3px; background: #0f172a; color: white; padding: 2px 10px; border-radius: 9999px; font-weight: bold; font-size: 8.5px; letter-spacing: 0.3px; }
+          
+          .student-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 5px 8px; border-radius: 6px; margin-bottom: 6px; font-size: 9px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; text-align: center; }
           .summary-card { padding: 4px 6px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; }
           .summary-card.red { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
           .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
-          
-          .main-grid { display: flex; gap: 8px; align-items: flex-start; }
-          .col-left { flex: 0 0 57%; width: 57%; }
-          .col-right { flex: 0 0 43%; width: 43%; display: flex; flex-direction: column; gap: 6px; }
 
-          .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; color: #1e293b; border-left: 3px solid #059669; padding-left: 5px; }
-          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9px; }
-          .table-container th { background: #f1f5f9; padding: 3.5px 4px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 8.5px; }
-          .table-container td { padding: 3px 4px; border: 1px solid #cbd5e1; }
+          .section-title { font-size: 9.5px; font-weight: 800; text-transform: uppercase; margin: 6px 0 3px 0; color: #1e293b; border-left: 3px solid #059669; padding-left: 5px; }
           
-          .notice-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 6px 8px; border-radius: 6px; font-size: 8.5px; color: #166534; line-height: 1.25; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center; margin-top: 4px; font-size: 9px; }
-          .sig-line { margin-top: 35px; border-top: 1px solid #475569; display: inline-block; width: 120px; padding-top: 2px; font-weight: bold; font-size: 8.5px; }
+          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 8.5px; }
+          .table-container th { background: #f1f5f9; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 8px; }
+          .table-container td { padding: 2.5px 4px; border: 1px solid #cbd5e1; }
+
+          .spp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+
+          .footer-grid { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-top: 6px; width: 100%; }
+          .notice-box { flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 6px 8px; border-radius: 6px; font-size: 8px; color: #166534; line-height: 1.25; }
+          .signatures { flex: 0 0 280px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; font-size: 8.5px; }
+          .sig-line { margin-top: 32px; border-top: 1px solid #475569; display: inline-block; width: 110px; padding-top: 2px; font-weight: bold; font-size: 8px; }
+          
           @media print {
             .btn-container { display: none !important; }
             .page-container { padding: 0; }
-            body { font-size: 9px; }
           }
         </style>
       </head>
@@ -616,86 +624,103 @@ export default function InvoicesList() {
           </div>
 
           <div class="student-card">
-            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Nama Siswa:</strong><span style="font-weight: 800; font-size: 10.5px;">${student.name}</span></div>
-            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">NIS / NISN:</strong>${student.nis || '-'}</div>
-            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Kelas / Jenjang:</strong>${student.class_name || '-'} (${student.unit_name || 'Cendekia'})</div>
-            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Waktu Cetak:</strong>${dateStamp}</div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 7.5px; display: block;">Nama Siswa:</strong><span style="font-weight: 800; font-size: 10px;">${student.name}</span></div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 7.5px; display: block;">NIS / NISN:</strong>${student.nis || '-'}</div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 7.5px; display: block;">Kelas / Jenjang:</strong>${student.class_name || '-'} (${student.unit_name || 'Cendekia'})</div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 7.5px; display: block;">Waktu Cetak:</strong>${dateStamp}</div>
           </div>
 
           <div class="summary-grid">
             <div class="summary-card">
-              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold; color: #475569;">Total Kewajiban Biaya</div>
-              <div style="font-size: 13px; font-weight: 900; color: #0f172a;">Rp ${totalNominal.toLocaleString('id-ID')}</div>
+              <div style="font-size: 7.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Total Kewajiban Biaya</div>
+              <div style="font-size: 12px; font-weight: 900; color: #0f172a;">Rp ${totalNominal.toLocaleString('id-ID')}</div>
             </div>
             <div class="summary-card green">
-              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold;">Total Terbayar (Lunas)</div>
-              <div style="font-size: 13px; font-weight: 900;">Rp ${totalPaid.toLocaleString('id-ID')}</div>
+              <div style="font-size: 7.5px; text-transform: uppercase; font-weight: bold;">Total Terbayar (Lunas)</div>
+              <div style="font-size: 12px; font-weight: 900;">Rp ${totalPaid.toLocaleString('id-ID')}</div>
             </div>
             <div class="summary-card red">
-              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold;">Sisa Kewajiban / Piutang</div>
-              <div style="font-size: 13px; font-weight: 900;">Rp ${totalRemaining.toLocaleString('id-ID')}</div>
+              <div style="font-size: 7.5px; text-transform: uppercase; font-weight: bold;">Sisa Kewajiban / Piutang</div>
+              <div style="font-size: 12px; font-weight: 900;">Rp ${totalRemaining.toLocaleString('id-ID')}</div>
             </div>
           </div>
 
-          <div class="main-grid">
-            <!-- Left Column: 12 SPP Months -->
-            <div class="col-left">
-              <div class="section-title">1. Rincian SPP Bulanan (TA 2026/2027)</div>
+          <!-- SECTION 1: 12 SPP MONTHS (2 Semester Columns Side-by-Side) -->
+          <div class="section-title">1. Rincian SPP Bulanan (12 Bulan / TA 2026/2027)</div>
+          <div class="spp-grid">
+            <div>
               <table class="table-container">
                 <thead>
                   <tr>
-                    <th style="width: 22px;">No</th>
-                    <th>Bulan Tagihan</th>
+                    <th style="width: 18px;">No</th>
+                    <th>Semester 1 (Ganjil)</th>
                     <th>Tagihan</th>
-                    <th>Diskon</th>
                     <th>Bayar</th>
                     <th>Sisa</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${sppRowsHtml.length > 0 ? sppRowsHtml : '<tr><td colspan="7" style="text-align:center; padding:10px; color:#94a3b8;">Tidak ada pos SPP</td></tr>'}
+                  ${sppSem1Html || '<tr><td colspan="6" style="text-align:center; padding:5px;">-</td></tr>'}
                 </tbody>
               </table>
             </div>
 
-            <!-- Right Column: Non-SPP Posts + Payment Notice + Signatures -->
-            <div class="col-right">
+            <div>
+              <table class="table-container">
+                <thead>
+                  <tr>
+                    <th style="width: 18px;">No</th>
+                    <th>Semester 2 (Genap)</th>
+                    <th>Tagihan</th>
+                    <th>Bayar</th>
+                    <th>Sisa</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sppSem2Html || '<tr><td colspan="6" style="text-align:center; padding:5px;">-</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SECTION 2: NON-SPP POSTS (PLACED UNDERNEATH SPP, FULL WIDTH) -->
+          <div class="section-title">2. Rincian Pos Tagihan Non-SPP (Uang Masuk, Gedung, Seragam, Kegiatan, dll.)</div>
+          <table class="table-container">
+            <thead>
+              <tr>
+                <th style="width: 22px;">No</th>
+                <th>Pos Pembayaran</th>
+                <th>Kategori</th>
+                <th>Tagihan</th>
+                <th>Potongan</th>
+                <th>Sudah Bayar</th>
+                <th>Sisa Tagihan</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${nonSppRowsHtml.length > 0 ? nonSppRowsHtml : '<tr><td colspan="8" style="text-align:center; padding:6px; color:#94a3b8;">Tidak ada tagihan non-SPP untuk siswa ini</td></tr>'}
+            </tbody>
+          </table>
+
+          <!-- FOOTER: NOTICE & SIGNATURES (SIDE-BY-SIDE) -->
+          <div class="footer-grid">
+            <div class="notice-box">
+              <strong>ℹ️ Rekening &amp; Informasi Pembayaran:</strong><br/>
+              • <strong>BSI (Bank Syariah Indonesia) No. 7188-2991-01</strong> a.n. <em>SIT Cendekia Lamongan</em>.<br/>
+              • Loket Kasir Sekolah Buka: Senin - Sabtu (07.30 - 15.00 WIB) • WA Keuangan: 0812-3456-7890.
+            </div>
+
+            <div class="signatures">
               <div>
-                <div class="section-title">2. Pos Tagihan Non-SPP</div>
-                <table class="table-container">
-                  <thead>
-                    <tr>
-                      <th style="width: 20px;">No</th>
-                      <th>Pos Pembayaran</th>
-                      <th>Tagihan</th>
-                      <th>Bayar</th>
-                      <th>Sisa</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${nonSppRowsHtml.length > 0 ? nonSppRowsHtml : '<tr><td colspan="6" style="text-align:center; padding:8px; color:#94a3b8;">Tidak ada tagihan non-SPP</td></tr>'}
-                  </tbody>
-                </table>
+                <p style="margin: 0; color: #475569;">Wali Murid,</p>
+                <div class="sig-line">( Orang Tua / Wali )</div>
               </div>
-
-              <div class="notice-box">
-                <strong>ℹ️ Rekening &amp; Loket Pembayaran:</strong><br/>
-                • <strong>BSI (Bank Syariah Indonesia) No. 7188-2991-01</strong> a.n. <em>SIT Cendekia Lamongan</em>.<br/>
-                • Loket Kasir Sekolah: Buka Senin - Sabtu (07.30 - 15.00 WIB).<br/>
-                • Konfirmasi WA Keuangan: 0812-3456-7890.
-              </div>
-
-              <div class="signatures">
-                <div>
-                  <p style="margin: 0; color: #475569;">Wali Murid,</p>
-                  <div class="sig-line">( Orang Tua / Wali )</div>
-                </div>
-                <div>
-                  <p style="margin: 0; color: #475569;">Lamongan, ${dateStamp}<br/>Bagian Kasir / Keuangan,</p>
-                  <div class="sig-line">( Petugas Loket Kasir )</div>
-                </div>
+              <div>
+                <p style="margin: 0; color: #475569;">Lamongan, ${dateStamp}<br/>Bagian Kasir / Keuangan,</p>
+                <div class="sig-line">( Petugas Loket Kasir )</div>
               </div>
             </div>
           </div>
