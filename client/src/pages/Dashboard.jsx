@@ -309,6 +309,14 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Quick Link to Today's Transactions for this unit */}
+                <button
+                  onClick={() => navigate(`/history-transaksi?period=harian&unit=${unit.unitCode}`)}
+                  className="w-full py-2 px-3 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-800 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 hover:border-emerald-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>Buka Rincian {unit.transactionCount || 0} Riwayat Transaksi {unit.unitCode} Hari Ini &rarr;</span>
+                </button>
               </div>
             );
           })}

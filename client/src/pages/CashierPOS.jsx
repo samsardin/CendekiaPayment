@@ -55,11 +55,23 @@ export default function CashierPOS({ initialTab }) {
 
   const isHistoryPath = location.pathname.includes('history');
   const tabParam = searchParams.get('tab');
+  const unitParam = searchParams.get('unit');
+  const periodParam = searchParams.get('period');
 
   // Active View Tab: 'pos' (Form Transaksi Kasir) or 'history' (Riwayat Pembayaran Kasir)
   const [activeTab, setActiveTab] = useState(
     initialTab || (isHistoryPath || tabParam === 'history' ? 'history' : 'pos')
   );
+
+  // History State (Harian, Pekanan, Bulanan, Semua, Unit KBTK / SDIT)
+  const [historyUnit, setHistoryUnit] = useState(unitParam || ''); // '' (Semua), 'KBTK', 'SDIT'
+  const [historyPeriod, setHistoryPeriod] = useState(periodParam || 'all');
+  const [historyMethod, setHistoryMethod] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [historySummary, setHistorySummary] = useState({ totalAmount: 0, totalCash: 0, totalNonCash: 0, totalCount: 0 });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [printRekapModal, setPrintRekapModal] = useState(false);
 
   useEffect(() => {
     if (initialTab === 'history' || isHistoryPath || tabParam === 'history') {
@@ -67,7 +79,9 @@ export default function CashierPOS({ initialTab }) {
     } else if (tabParam === 'pos') {
       setActiveTab('pos');
     }
-  }, [initialTab, isHistoryPath, tabParam]);
+    if (unitParam !== null && unitParam !== undefined) setHistoryUnit(unitParam);
+    if (periodParam !== null && periodParam !== undefined) setHistoryPeriod(periodParam);
+  }, [initialTab, isHistoryPath, tabParam, unitParam, periodParam]);
 
   // Step state for POS: 1 (Jenjang), 2 (Kelas), 3 (Siswa), 4 (Pembayaran)
   const [step, setStep] = useState(1);
@@ -98,15 +112,7 @@ export default function CashierPOS({ initialTab }) {
   const [loading, setLoading] = useState(false);
   const [successModal, setSuccessModal] = useState(null);
 
-  // History State (Harian, Pekanan, Bulanan, Semua, Unit KBTK / SDIT)
-  const [historyUnit, setHistoryUnit] = useState(''); // '' (Semua), 'KBTK', 'SDIT'
-  const [historyPeriod, setHistoryPeriod] = useState('all');
-  const [historyMethod, setHistoryMethod] = useState('');
-  const [historySearch, setHistorySearch] = useState('');
-  const [paymentHistory, setPaymentHistory] = useState([]);
-  const [historySummary, setHistorySummary] = useState({ totalAmount: 0, totalCash: 0, totalNonCash: 0, totalCount: 0 });
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [printRekapModal, setPrintRekapModal] = useState(false);
+  // History State handled at top
 
   useEffect(() => {
     fetchUnits();
@@ -1189,20 +1195,38 @@ export default function CashierPOS({ initialTab }) {
           {/* History KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] text-slate-400 font-bold uppercase">Total Penerimaan</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-400 font-bold uppercase">Total Penerimaan</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                  {historyPeriod === 'all' ? 'Semua Waktu' : historyPeriod === 'harian' ? 'Hari Ini' : historyPeriod === 'pekanan' ? 'Pekan Ini' : 'Bulan Ini'}
+                </span>
+              </div>
               <p className="text-lg font-black text-slate-800">Rp {historySummary.totalAmount.toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-400 font-medium">{historyUnit === 'KBTK' ? 'Jenjang KBTK-IT' : historyUnit === 'SDIT' ? 'Jenjang SDIT' : 'Semua Jenjang'}</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] text-slate-400 font-bold uppercase">Tunai (Cash)</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-400 font-bold uppercase">Tunai (Cash)</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Cash</span>
+              </div>
               <p className="text-lg font-black text-emerald-700">Rp {historySummary.totalCash.toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-400 font-medium">Penerimaan Langsung Loket</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] text-slate-400 font-bold uppercase">Non-Tunai (Transfer/QRIS)</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-400 font-bold uppercase">Non-Tunai</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-700">Transfer/QRIS</span>
+              </div>
               <p className="text-lg font-black text-teal-700">Rp {historySummary.totalNonCash.toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-400 font-medium">Bank & QRIS Gateway</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] text-slate-400 font-bold uppercase">Jumlah Transaksi</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-400 font-bold uppercase">Jumlah Transaksi</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">Kuitansi</span>
+              </div>
               <p className="text-lg font-black text-slate-800">{historySummary.totalCount} Transaksi</p>
+              <p className="text-[10px] text-slate-400 font-medium">{historyPeriod === 'harian' ? 'Tercatat Hari Ini' : 'Tercatat Sesuai Filter'}</p>
             </div>
           </div>
 
