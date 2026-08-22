@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { 
   FilePieChart, 
@@ -16,7 +16,10 @@ import {
   RefreshCw,
   X,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  FileText,
+  Building,
+  Check
 } from 'lucide-react';
 
 const formatRupiah = (val) => {
@@ -43,6 +46,12 @@ export default function Reports() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentLedger, setStudentLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+
+  // Print & Export Modal State
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printType, setPrintType] = useState('summary'); // 'summary', 'by-post', 'by-class', 'ledger'
+
+  const printAreaRef = useRef(null);
 
   useEffect(() => {
     fetchReportSummary();
@@ -98,8 +107,25 @@ export default function Reports() {
     }
   };
 
-  const handlePrint = () => {
+  const handleOpenPrintModal = (type = activeTab) => {
+    setPrintType(type);
+    setShowPrintModal(true);
+  };
+
+  const handleExecutePrint = () => {
     window.print();
+  };
+
+  const todayFormatted = new Date().toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const getSelectedUnitName = () => {
+    if (!selectedUnit) return 'Semua Unit (KBTK & SDIT)';
+    const found = units.find(u => String(u.id) === String(selectedUnit));
+    return found ? `${found.name} (${found.code})` : 'Unit Terpilih';
   };
 
   return (
@@ -137,7 +163,7 @@ export default function Reports() {
           </button>
 
           <button
-            onClick={handlePrint}
+            onClick={() => handleOpenPrintModal(activeTab)}
             className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
           >
             <Printer className="w-4 h-4" />
@@ -338,11 +364,20 @@ export default function Reports() {
                     NIS: <strong>{studentLedger.student?.nis}</strong> • Kelas: <strong>{studentLedger.student?.class_name}</strong> ({studentLedger.student?.unit_name})
                   </p>
                 </div>
-                <div className="text-left sm:text-right bg-white/10 sm:bg-transparent p-3 sm:p-0 rounded-2xl backdrop-blur-xs">
-                  <span className="text-[11px] text-emerald-300 font-bold block uppercase tracking-wider">Total Sisa Piutang:</span>
-                  <h2 className="text-2xl sm:text-3xl font-black text-amber-300 mt-0.5">
-                    {formatRupiah(studentLedger.summary?.totalPiutang)}
-                  </h2>
+                <div className="text-left sm:text-right bg-white/10 sm:bg-transparent p-3 sm:p-0 rounded-2xl backdrop-blur-xs flex flex-col sm:items-end gap-2">
+                  <div>
+                    <span className="text-[11px] text-emerald-300 font-bold block uppercase tracking-wider">Total Sisa Piutang:</span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-amber-300 mt-0.5">
+                      {formatRupiah(studentLedger.summary?.totalPiutang)}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => handleOpenPrintModal('ledger')}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Cetak Kartu Siswa Ini</span>
+                  </button>
                 </div>
               </div>
 
@@ -396,9 +431,13 @@ export default function Reports() {
               <h3 className="font-extrabold text-slate-800 text-base">Rekapitulasi Laporan Keuangan Per Pos Pembayaran</h3>
               <p className="text-xs text-slate-500">Performa penerimaan kas dan sisa piutang per pos tagihan sekolah</p>
             </div>
-            <span className="text-xs font-bold text-slate-400 px-3 py-1 bg-slate-100 rounded-xl">
-              {byPost.length} Pos Pembayaran
-            </span>
+            <button
+              onClick={() => handleOpenPrintModal('by-post')}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Cetak Laporan Pos</span>
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -446,9 +485,13 @@ export default function Reports() {
               <h3 className="font-extrabold text-slate-800 text-base">Rekapitulasi Laporan Keuangan Per Kelas</h3>
               <p className="text-xs text-slate-500">Penerimaan kas dan sisa piutang terbagi per rombongan belajar</p>
             </div>
-            <span className="text-xs font-bold text-slate-400 px-3 py-1 bg-slate-100 rounded-xl">
-              {byClass.length} Kelas
-            </span>
+            <button
+              onClick={() => handleOpenPrintModal('by-class')}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Cetak Laporan Kelas</span>
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -482,6 +525,271 @@ export default function Reports() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PRATINJAU DOKUMEN CETAK RESMI ================= */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/80 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white print:static">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
+            {/* Modal Control Bar (Hidden on Print) */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50 print:hidden shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">Pratinjau Cetak Dokumen Resmi</h3>
+                  <p className="text-[11px] text-slate-500">Format standar kertas A4 laporan keuangan sekolah</p>
+                </div>
+              </div>
+
+              {/* Format Switcher & Action Buttons */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={printType}
+                  onChange={(e) => setPrintType(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
+                >
+                  <option value="summary">Ringkasan Keuangan</option>
+                  <option value="by-post">Laporan Per Pos</option>
+                  <option value="by-class">Laporan Per Kelas</option>
+                  {studentLedger && <option value="ledger">Kartu Piutang Siswa</option>}
+                </select>
+
+                <button
+                  onClick={handleExecutePrint}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak (A4 / PDF)</span>
+                </button>
+
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable A4 Document Body */}
+            <div id="printable-report" className="p-6 sm:p-10 overflow-y-auto space-y-6 print:p-0 print:overflow-visible font-sans text-slate-900 bg-white" ref={printAreaRef}>
+              {/* KOP SURAT RESMI */}
+              <div className="border-b-4 border-double border-slate-900 pb-4 text-center space-y-1">
+                <h3 className="text-sm font-bold tracking-widest text-emerald-800 uppercase">YAYASAN CENDEKIA LAMONGAN</h3>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  SEKOLAH ISLAM TERPADU CENDEKIA
+                </h1>
+                <p className="text-xs font-semibold text-slate-600">
+                  KBTK-IT CENDEKIA &bull; SDIT CENDEKIA
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Jl. Cendekia No. 01, Lamongan, Jawa Timur &bull; Telp: (0322) 123456 &bull; Email: info@cendekia.sch.id
+                </p>
+              </div>
+
+              {/* DOCUMENT TITLE */}
+              <div className="text-center space-y-1 py-2">
+                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-slate-900 underline decoration-2 underline-offset-4">
+                  {printType === 'summary' && 'LAPORAN RINGKASAN KEUANGAN SEKOLAH'}
+                  {printType === 'by-post' && 'LAPORAN REKAPITULASI PEMBAYARAN PER POS'}
+                  {printType === 'by-class' && 'LAPORAN REKAPITULASI KEUANGAN PER KELAS'}
+                  {printType === 'ledger' && 'KARTU PEMBANTU PIUTANG SISWA'}
+                </h2>
+                <p className="text-xs text-slate-600">
+                  Unit: <strong>{getSelectedUnitName()}</strong> &bull; Per Tanggal: <strong>{todayFormatted}</strong>
+                </p>
+              </div>
+
+              {/* DOCUMENT BODY BASED ON TYPE */}
+              {printType === 'summary' && summary && (
+                <div className="space-y-6">
+                  {/* Summary Grid Table */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl border border-slate-300 bg-slate-50/60 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">1. TOTAL PENERIMAAN / PEMASUKAN</span>
+                      <h3 className="text-xl font-black text-emerald-800">{formatRupiah(summary.totalIncome)}</h3>
+                    </div>
+                    <div className="p-4 rounded-xl border border-slate-300 bg-slate-50/60 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">2. TOTAL PENGELUARAN OPERASIONAL</span>
+                      <h3 className="text-xl font-black text-rose-800">{formatRupiah(summary.totalExpense)}</h3>
+                    </div>
+                    <div className="p-4 rounded-xl border border-slate-300 bg-slate-50/60 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">3. NET CASH FLOW (SURPLUS/SISA KAS)</span>
+                      <h3 className="text-xl font-black text-slate-900">{formatRupiah(summary.netCashFlow)}</h3>
+                    </div>
+                    <div className="p-4 rounded-xl border border-slate-300 bg-slate-50/60 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">4. TOTAL SISA PIUTANG SISWA</span>
+                      <h3 className="text-xl font-black text-amber-800">{formatRupiah(summary.totalPiutang)}</h3>
+                    </div>
+                  </div>
+
+                  {/* Pos Breakdown Table */}
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Rincian Pos Pembayaran Terbesar:</h4>
+                    <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                          <th className="p-2.5 border-r border-slate-300 w-10 text-center">No</th>
+                          <th className="p-2.5 border-r border-slate-300">Nama Pos Pembayaran</th>
+                          <th className="p-2.5 border-r border-slate-300">Unit</th>
+                          <th className="p-2.5 border-r border-slate-300 text-right">Total Tagihan</th>
+                          <th className="p-2.5 border-r border-slate-300 text-right">Terbayar</th>
+                          <th className="p-2.5 text-right">Sisa Piutang</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {byPost.map((p, idx) => (
+                          <tr key={p.id}>
+                            <td className="p-2 border-r border-slate-200 text-center">{idx + 1}</td>
+                            <td className="p-2 border-r border-slate-200 font-semibold">{p.post_name}</td>
+                            <td className="p-2 border-r border-slate-200">{p.unit_name || 'Semua'}</td>
+                            <td className="p-2 border-r border-slate-200 text-right font-mono">{formatRupiah(p.total_nominal)}</td>
+                            <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-800">{formatRupiah(p.total_paid)}</td>
+                            <td className="p-2 text-right font-mono font-bold text-amber-800">{formatRupiah(p.total_piutang)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {printType === 'by-post' && (
+                <div className="space-y-4">
+                  <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                        <th className="p-2.5 border-r border-slate-300 w-10 text-center">No</th>
+                        <th className="p-2.5 border-r border-slate-300">Nama Pos Tagihan</th>
+                        <th className="p-2.5 border-r border-slate-300">Unit Sekolah</th>
+                        <th className="p-2.5 border-r border-slate-300 text-center">Jumlah Tagihan</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Total Nominal</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Total Terbayar</th>
+                        <th className="p-2.5 text-right">Total Piutang</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {byPost.map((p, idx) => (
+                        <tr key={p.id}>
+                          <td className="p-2 border-r border-slate-200 text-center">{idx + 1}</td>
+                          <td className="p-2 border-r border-slate-200 font-semibold">{p.post_name}</td>
+                          <td className="p-2 border-r border-slate-200">{p.unit_name || 'Semua Unit'}</td>
+                          <td className="p-2 border-r border-slate-200 text-center">{p.total_invoices || 0}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono">{formatRupiah(p.total_nominal)}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-800">{formatRupiah(p.total_paid)}</td>
+                          <td className="p-2 text-right font-mono font-bold text-amber-800">{formatRupiah(p.total_piutang)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {printType === 'by-class' && (
+                <div className="space-y-4">
+                  <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                        <th className="p-2.5 border-r border-slate-300 w-10 text-center">No</th>
+                        <th className="p-2.5 border-r border-slate-300">Nama Rombel / Kelas</th>
+                        <th className="p-2.5 border-r border-slate-300">Jenjang</th>
+                        <th className="p-2.5 border-r border-slate-300 text-center">Jumlah Siswa</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Total Pembayaran</th>
+                        <th className="p-2.5 text-right">Total Piutang</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {byClass.map((c, idx) => (
+                        <tr key={c.id}>
+                          <td className="p-2 border-r border-slate-200 text-center">{idx + 1}</td>
+                          <td className="p-2 border-r border-slate-200 font-semibold">{c.class_name}</td>
+                          <td className="p-2 border-r border-slate-200">{c.unit_name}</td>
+                          <td className="p-2 border-r border-slate-200 text-center">{c.student_count || 0} Siswa</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-800">{formatRupiah(c.total_paid)}</td>
+                          <td className="p-2 text-right font-mono font-bold text-amber-800">{formatRupiah(c.total_piutang)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {printType === 'ledger' && studentLedger && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 border border-slate-300 rounded-xl space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span>Nama Siswa: <strong>{studentLedger.student?.name}</strong></span>
+                      <span>Kelas: <strong>{studentLedger.student?.class_name}</strong></span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>NIS: <strong>{studentLedger.student?.nis}</strong></span>
+                      <span>Jenjang: <strong>{studentLedger.student?.unit_name}</strong></span>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 font-bold">
+                        <th className="p-2.5 border-r border-slate-300 w-10 text-center">No</th>
+                        <th className="p-2.5 border-r border-slate-300">No. Tagihan</th>
+                        <th className="p-2.5 border-r border-slate-300">Pos Tagihan</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Nominal</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Diskon</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Terbayar</th>
+                        <th className="p-2.5 border-r border-slate-300 text-right">Sisa Piutang</th>
+                        <th className="p-2.5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(studentLedger.ledgerItems || []).map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 border-r border-slate-200 text-center">{idx + 1}</td>
+                          <td className="p-2 border-r border-slate-200 font-mono">{item.invoice_number}</td>
+                          <td className="p-2 border-r border-slate-200 font-semibold">{item.post_name}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono">{formatRupiah(item.nominal)}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono">{item.discount > 0 ? `-${formatRupiah(item.discount)}` : '-'}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-800">{formatRupiah(item.paid)}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-amber-800">{formatRupiah(item.remaining)}</td>
+                          <td className="p-2 text-center uppercase font-bold text-[10px]">{item.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-100 border-t-2 border-slate-400 font-bold">
+                        <td colSpan="6" className="p-2.5 text-right uppercase">Total Sisa Kewajiban Piutang:</td>
+                        <td className="p-2.5 text-right font-mono text-amber-900 font-black text-sm">
+                          {formatRupiah(studentLedger.summary?.totalPiutang)}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {/* TANDA TANGAN / SIGNATURE BLOCK */}
+              <div className="pt-8 grid grid-cols-2 gap-8 text-xs text-center break-inside-avoid">
+                <div className="space-y-16">
+                  <p>Mengetahui,<br /><strong>Kepala Sekolah</strong></p>
+                  <div>
+                    <p className="font-bold underline uppercase">( __________________________ )</p>
+                    <p className="text-[10px] text-slate-500">NIY / NIP Sekolah</p>
+                  </div>
+                </div>
+
+                <div className="space-y-16">
+                  <p>Lamongan, {todayFormatted}<br /><strong>Bendahara / Keuangan</strong></p>
+                  <div>
+                    <p className="font-bold underline uppercase">( __________________________ )</p>
+                    <p className="text-[10px] text-slate-500">Bagian Keuangan Cendekia</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
