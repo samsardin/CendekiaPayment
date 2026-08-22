@@ -2000,16 +2000,24 @@ export default function InvoicesList() {
             </div>
 
             {/* Panduan Alur Database Siswa */}
-            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-2">
               <div className="font-extrabold flex items-center gap-1.5 text-amber-950">
-                <span>💡 Petunjuk Penting Sebelum Import:</span>
+                <span>💡 Petunjuk Pengisian Nilai di Kolom Excel:</span>
               </div>
-              <p className="leading-relaxed">
-                1. <strong>Pastikan data siswa (NIS &amp; Nama Siswa) sudah di-import/terdaftar terlebih dahulu di menu <span className="underline font-bold">Data Siswa</span>.</strong>
-              </p>
-              <p className="leading-relaxed">
-                2. Sistem mencocokkan tagihan berdasarkan <strong>NIS Siswa</strong>. Jika tagihan pos tersebut sudah ada, sistem akan <strong>memperbarui nominal &amp; status pembayarannya</strong>. Jika belum ada, sistem akan <strong>membuatkan tagihan baru secara otomatis</strong>.
-              </p>
+              <ul className="list-disc list-inside space-y-1 leading-relaxed">
+                <li>
+                  <strong>Diisi Angka Nominal (contoh: <code>450000</code>)</strong>: Dibuatkan tagihan sebesar Rp 450.000 dengan status <strong>Belum Dibayar</strong>.
+                </li>
+                <li>
+                  <strong>Diisi <code>0</code> atau <code>Lunas</code></strong>: Otomatis ditandai sebagai <strong>Sudah Lunas</strong> (Sisa Tagihan = Rp 0, Terbayar = Rp 450.000).
+                </li>
+                <li>
+                  <strong>Dikosongkan (Blank)</strong>: Pos tagihan tersebut dilewati / tidak dibuatkan tagihan.
+                </li>
+                <li>
+                  Pastikan <strong>NIS Siswa</strong> sudah terdaftar terlebih dahulu di menu <strong>Data Siswa</strong>.
+                </li>
+              </ul>
             </div>
 
             {/* Download Template Button */}

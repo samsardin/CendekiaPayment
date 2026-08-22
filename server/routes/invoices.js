@@ -361,30 +361,40 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
       let nominal = post.default_nominal || 0;
       let discount = parseFloat(rawDiscount) >= 0 ? parseFloat(rawDiscount) : 0;
       let paid = 0;
-      let isLunasText = false;
+      let isLunas = false;
 
       if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
-        const valStr = String(rawVal).trim();
-        const numVal = parseFloat(valStr.replace(/[^\d.-]/g, ''));
-        if (!isNaN(numVal)) {
-          nominal = numVal;
-        }
-        if (valStr.toLowerCase().includes('lunas') || valStr.toLowerCase() === 'l') {
-          isLunasText = true;
+        const valStr = String(rawVal).trim().toLowerCase();
+        
+        // Jika diisi 0, 'lunas', 'l', 'sudah', atau 'ya' -> Otomatis dianggap LUNAS
+        if (valStr === '0' || valStr === 'lunas' || valStr === 'l' || valStr === 'sudah' || valStr === 'ya') {
+          isLunas = true;
+          nominal = post.default_nominal || (student.unit_id === 1 ? 350000 : 450000);
+          paid = Math.max(0, nominal - discount);
+        } else {
+          const numVal = parseFloat(valStr.replace(/[^\d.-]/g, ''));
+          if (!isNaN(numVal) && numVal > 0) {
+            nominal = numVal;
+          }
+          if (valStr.includes('lunas') || valStr.includes('l')) {
+            isLunas = true;
+            paid = Math.max(0, nominal - discount);
+          }
         }
       }
 
       if (rawPaid !== null && rawPaid !== undefined && rawPaid !== '') {
         const pNum = parseFloat(String(rawPaid).replace(/[^\d.-]/g, ''));
         if (!isNaN(pNum)) paid = pNum;
-      } else if (isLunasText) {
-        paid = Math.max(0, nominal - discount);
       }
 
       const effectiveNominal = Math.max(0, nominal - discount);
       let status = 'Belum Dibayar';
-      if (paid >= effectiveNominal && effectiveNominal > 0) {
+      if (isLunas || (paid >= effectiveNominal && effectiveNominal > 0)) {
         status = 'Lunas';
+        if (paid === 0 && effectiveNominal > 0) {
+          paid = effectiveNominal;
+        }
       } else if (paid > 0) {
         status = 'Sebagian';
       }
