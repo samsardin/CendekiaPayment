@@ -98,7 +98,8 @@ export default function CashierPOS({ initialTab }) {
   const [loading, setLoading] = useState(false);
   const [successModal, setSuccessModal] = useState(null);
 
-  // History State (Harian, Pekanan, Bulanan, Semua)
+  // History State (Harian, Pekanan, Bulanan, Semua, Unit KBTK / SDIT)
+  const [historyUnit, setHistoryUnit] = useState(''); // '' (Semua), 'KBTK', 'SDIT'
   const [historyPeriod, setHistoryPeriod] = useState('all');
   const [historyMethod, setHistoryMethod] = useState('');
   const [historySearch, setHistorySearch] = useState('');
@@ -115,7 +116,7 @@ export default function CashierPOS({ initialTab }) {
     if (activeTab === 'history') {
       fetchPaymentHistory();
     }
-  }, [activeTab, historyPeriod, historyMethod, historySearch]);
+  }, [activeTab, historyPeriod, historyMethod, historySearch, historyUnit]);
 
   useEffect(() => {
     if (selectedInvoices.length > 0) {
@@ -148,6 +149,7 @@ export default function CashierPOS({ initialTab }) {
       return;
     }
 
+    const unitLabel = historyUnit === 'KBTK' ? 'Jenjang KBTK-IT Cendekia' : historyUnit === 'SDIT' ? 'Jenjang SDIT Cendekia' : 'Semua Jenjang (KBTK & SDIT)';
     const periodLabel = historyPeriod === 'all' ? 'Semua Periode' : historyPeriod === 'harian' ? 'Hari Ini' : historyPeriod === 'pekanan' ? 'Pekan Ini (7 Hari)' : 'Bulan Ini';
     const methodLabel = historyMethod || 'Semua Metode';
     const dateStamp = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -179,7 +181,7 @@ export default function CashierPOS({ initialTab }) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Rekap_Transaksi_Kasir_Cendekia_${historyPeriod}_${new Date().toISOString().slice(0, 10)}</title>
+        <title>Rekap_Transaksi_Kasir_Cendekia_${historyUnit || 'Semua'}_${historyPeriod}_${new Date().toISOString().slice(0, 10)}</title>
         <meta charset="utf-8" />
         <style>
           @page { size: A4 portrait; margin: 12mm 10mm; }
@@ -211,7 +213,7 @@ export default function CashierPOS({ initialTab }) {
           .header h1 { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.5px; color: #0f172a; }
           .header p { margin: 3px 0 0 0; font-size: 11px; color: #475569; }
           .badge { display: inline-block; margin-top: 8px; background: #0f172a; color: white; padding: 4px 14px; border-radius: 9999px; font-weight: bold; font-size: 10.5px; letter-spacing: 0.5px; }
-          .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 14px; font-size: 11px; }
+          .meta-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 14px; font-size: 11px; }
           .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
           .summary-card { padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
           .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
@@ -233,10 +235,11 @@ export default function CashierPOS({ initialTab }) {
         <div class="header">
           <h1>SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN</h1>
           <p>KBTK-IT &amp; SDIT Cendekia Lamongan • Jl. Veteran No. 45 Lamongan, Jawa Timur</p>
-          <div class="badge">LAPORAN REKAPITULASI PENERIMAAN KASIR / LOKET PEMBAYARAN</div>
+          <div class="badge">LAPORAN REKAPITULASI PENERIMAAN KASIR - ${unitLabel.toUpperCase()}</div>
         </div>
 
         <div class="meta-grid">
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Jenjang / Unit:</strong><span style="font-weight: bold; color: #059669;">${unitLabel}</span></div>
           <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Periode:</strong>${periodLabel}</div>
           <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Metode:</strong>${methodLabel}</div>
           <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Waktu Cetak:</strong>${dateStamp}</div>
@@ -374,6 +377,7 @@ export default function CashierPOS({ initialTab }) {
     setHistoryLoading(true);
     try {
       let url = `/payments?period=${historyPeriod}`;
+      if (historyUnit) url += `&unit_code=${historyUnit}`;
       if (historyMethod) url += `&payment_method=${historyMethod}`;
       if (historySearch) url += `&search=${historySearch}`;
 
@@ -1224,6 +1228,17 @@ export default function CashierPOS({ initialTab }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
+              {/* FILTER JENJANG / UNIT */}
+              <select
+                value={historyUnit}
+                onChange={(e) => setHistoryUnit(e.target.value)}
+                className="px-3 py-2 bg-emerald-50/80 border border-emerald-300 text-emerald-950 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="">Semua Jenjang (KBTK &amp; SDIT)</option>
+                <option value="KBTK">KBTK-IT Cendekia</option>
+                <option value="SDIT">SDIT Cendekia</option>
+              </select>
+
               <select
                 value={historyMethod}
                 onChange={(e) => setHistoryMethod(e.target.value)}
@@ -1235,7 +1250,7 @@ export default function CashierPOS({ initialTab }) {
                 <option value="QRIS">QRIS</option>
               </select>
 
-              <div className="relative w-full md:w-56">
+              <div className="relative w-full md:w-52">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -1250,7 +1265,7 @@ export default function CashierPOS({ initialTab }) {
               <button
                 onClick={handleExportPDF}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                title="Export dan Download Laporan Transaksi Kasir ke format PDF"
+                title="Export dan Download Laporan Transaksi Kasir per Jenjang ke format PDF"
               >
                 <FileText className="w-4 h-4" />
                 <span>Export Laporan PDF</span>
@@ -1373,13 +1388,19 @@ export default function CashierPOS({ initialTab }) {
                 </p>
                 <div className="mt-2 inline-block bg-slate-900 text-white px-3.5 py-1 rounded-full border border-slate-800 shadow-xs">
                   <span className="text-xs font-black uppercase tracking-wide">
-                    LAPORAN REKAPITULASI PENERIMAAN KASIR / LOKET PEMBAYARAN
+                    LAPORAN REKAPITULASI PENERIMAAN KASIR - {historyUnit === 'KBTK' ? 'JENJANG KBTK-IT' : historyUnit === 'SDIT' ? 'JENJANG SDIT' : 'SEMUA JENJANG'}
                   </span>
                 </div>
               </div>
 
               {/* Meta Info Filter */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 font-bold uppercase text-[10px] block">Jenjang / Unit</span>
+                  <span className="font-bold text-emerald-700">
+                    {historyUnit === 'KBTK' ? 'KBTK-IT Cendekia' : historyUnit === 'SDIT' ? 'SDIT Cendekia' : 'Semua Jenjang'}
+                  </span>
+                </div>
                 <div>
                   <span className="text-slate-400 font-bold uppercase text-[10px] block">Filter Periode</span>
                   <span className="font-bold text-slate-800 capitalize">

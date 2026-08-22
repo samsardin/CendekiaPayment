@@ -9,10 +9,11 @@ const { isParent, parentOwnsInvoice } = require('../utils/parentAccess');
 // Get payment transactions with period filters (Harian, Pekanan, Bulanan)
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const { student_id, search, status, payment_method, period, date_from, date_to } = req.query;
+    const { student_id, search, status, payment_method, period, date_from, date_to, unit_id, unit_code } = req.query;
 
     let sql = `
       SELECT p.*, p.transaction_number as receipt_number,
+             s.unit_id, COALESCE(u.id, s.unit_id) as unit_id, COALESCE(u.code, 'SDIT') as unit_code,
              COALESCE(s.name, 'Siswa Cendekia') as student_name, COALESCE(s.nis, '-') as nis, 
              COALESCE(c.name, 'Kelas Utama') as class_name, COALESCE(u.name, 'SDIT Cendekia') as unit_name,
              COALESCE(i.invoice_number, '-') as invoice_number, COALESCE(i.nominal, p.amount) as invoice_nominal, COALESCE(i.month_period, '-') as month_period,
@@ -38,6 +39,19 @@ router.get('/', verifyToken, async (req, res) => {
       params.push(req.user.id);
     }
 
+    if (unit_id) {
+      if (isNaN(unit_id)) {
+        sql += ` AND (u.code = ? OR LOWER(u.code) = LOWER(?))`;
+        params.push(unit_id, unit_id);
+      } else {
+        sql += ` AND (s.unit_id = ? OR u.id = ?)`;
+        params.push(parseInt(unit_id), parseInt(unit_id));
+      }
+    }
+    if (unit_code) {
+      sql += ` AND (u.code = ? OR LOWER(u.code) = LOWER(?))`;
+      params.push(unit_code, unit_code);
+    }
     if (student_id) {
       sql += ` AND p.student_id = ?`;
       params.push(student_id);
