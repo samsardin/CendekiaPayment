@@ -45,6 +45,8 @@ const ProtectedLayout = () => {
             <Route path="/" element={<Navigate to={currentUser.role === 'ortu' ? '/parent-portal' : '/dashboard'} replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/kasir-pos" element={<CashierPOS />} />
+            <Route path="/history-transaksi" element={<CashierPOS initialTab="history" />} />
+            <Route path="/kasir-history" element={<CashierPOS initialTab="history" />} />
             <Route path="/invoices" element={<InvoicesList />} />
             <Route path="/students" element={<StudentsList />} />
             <Route path="/pos-settings" element={<PosPayment />} />

@@ -31,7 +31,7 @@ import {
   Download,
   FileSpreadsheet
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 
 const monthLabels = {
   '2026-07': 'Juli 2026',
@@ -48,11 +48,26 @@ const monthLabels = {
   '2027-06': 'Juni 2027'
 };
 
-export default function CashierPOS() {
+export default function CashierPOS({ initialTab }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const isHistoryPath = location.pathname.includes('history');
+  const tabParam = searchParams.get('tab');
 
   // Active View Tab: 'pos' (Form Transaksi Kasir) or 'history' (Riwayat Pembayaran Kasir)
-  const [activeTab, setActiveTab] = useState('pos');
+  const [activeTab, setActiveTab] = useState(
+    initialTab || (isHistoryPath || tabParam === 'history' ? 'history' : 'pos')
+  );
+
+  useEffect(() => {
+    if (initialTab === 'history' || isHistoryPath || tabParam === 'history') {
+      setActiveTab('history');
+    } else if (tabParam === 'pos') {
+      setActiveTab('pos');
+    }
+  }, [initialTab, isHistoryPath, tabParam]);
 
   // Step state for POS: 1 (Jenjang), 2 (Kelas), 3 (Siswa), 4 (Pembayaran)
   const [step, setStep] = useState(1);

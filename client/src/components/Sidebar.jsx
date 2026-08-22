@@ -27,6 +27,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
       items: [
         { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['superadmin', 'admin', 'kasir'] },
         { name: 'Kasir & Pembayaran', path: '/kasir-pos', icon: CreditCard, roles: ['superadmin', 'admin', 'kasir'] },
+        { name: 'Riwayat Transaksi', path: '/history-transaksi', icon: History, roles: ['superadmin', 'admin', 'kasir'] },
         { name: 'Portal Orang Tua', path: '/parent-portal', icon: UserCheck, roles: ['ortu', 'superadmin', 'admin'] }
       ]
     },
