@@ -402,17 +402,33 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
       let existing = null;
       if (normalizedPeriod) {
         existing = await get(
-          `SELECT id FROM invoices WHERE student_id = ? AND post_id = ? AND month_period = ?`,
+          `SELECT id, nominal, discount_amount, paid_amount, status FROM invoices WHERE student_id = ? AND post_id = ? AND month_period = ?`,
           [student.id, post.id, normalizedPeriod]
         );
       } else {
         existing = await get(
-          `SELECT id FROM invoices WHERE student_id = ? AND post_id = ? AND (month_period IS NULL OR month_period = '')`,
+          `SELECT id, nominal, discount_amount, paid_amount, status FROM invoices WHERE student_id = ? AND post_id = ? AND (month_period IS NULL OR month_period = '')`,
           [student.id, post.id]
         );
       }
 
       if (existing) {
+        const existingPaid = parseFloat(existing.paid_amount) || 0;
+        const existingStatus = existing.status;
+
+        // PROTEKSI PEMBAYARAN KASIR:
+        // Jika di database tagihan ini sudah tercatat lunas atau sudah ada pembayaran di loket kasir,
+        // pertahankan nilai pembayaran kasir dan jangan pernah turunkan statusnya menjadi Belum Dibayar.
+        if (existingStatus === 'Lunas' || existingPaid > 0) {
+          paid = Math.max(paid, existingPaid);
+          if (existingStatus === 'Lunas' || paid >= effectiveNominal) {
+            status = 'Lunas';
+            paid = Math.max(paid, effectiveNominal);
+          } else if (paid > 0) {
+            status = 'Sebagian';
+          }
+        }
+
         await run(
           `UPDATE invoices 
            SET nominal = ?, discount_amount = ?, paid_amount = ?, status = ?
