@@ -208,14 +208,41 @@ export default function InvoicesList() {
     fetchInvoices();
   };
 
-  const handleSendWAReminder = async (invoiceId) => {
+  // WA Reminder States
+  const [waModalData, setWaModalData] = useState(null);
+  const [waPhoneInput, setWaPhoneInput] = useState('');
+  const [waLoading, setWaLoading] = useState(false);
+  const [waSuccessModal, setWaSuccessModal] = useState(null);
+
+  const handleSendWAReminder = async (inv, customPhone = null) => {
+    setWaLoading(true);
     try {
-      const res = await api.post(`/invoices/${invoiceId}/reminder`);
+      const res = await api.post(`/invoices/${inv.id}/reminder`, {
+        custom_phone: customPhone
+      });
       if (res.data.success) {
-        alert('Pengingat WhatsApp berhasil dikirim ke nomor orang tua!');
+        setWaModalData(null);
+        setWaSuccessModal({
+          message: res.data.message,
+          phone: res.data.target_phone,
+          whatsappUrl: res.data.whatsapp_url,
+          studentName: inv.student_name,
+          recipientName: res.data.recipient_name
+        });
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Gagal mengirim WA reminder');
+      if (err.response?.data?.needs_phone) {
+        setWaModalData({
+          invoice: inv,
+          studentName: inv.student_name,
+          phone: ''
+        });
+        setWaPhoneInput('');
+      } else {
+        alert(err.response?.data?.error || 'Gagal mengirim WA reminder');
+      }
+    } finally {
+      setWaLoading(false);
     }
   };
 
@@ -1247,7 +1274,7 @@ export default function InvoicesList() {
 
                           {inv.status !== 'Lunas' && (
                             <button
-                              onClick={() => handleSendWAReminder(inv.id)}
+                              onClick={() => handleSendWAReminder(inv)}
                               title="Kirim Pengingat WhatsApp"
                               className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 transition-all text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
                             >
@@ -2131,6 +2158,114 @@ export default function InvoicesList() {
                   <span>{excelImportLoading ? 'Memproses Import...' : 'Mulai Import ke Database'}</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PROMPT INPUT NOMOR WA ORANG TUA ================= */}
+      {waModalData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 lg:p-7 space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100 shadow-xs">
+                  <Smartphone className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Nomor WhatsApp Orang Tua</h3>
+                  <p className="text-xs text-slate-500">Siswa: {waModalData.studentName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWaModalData(null)}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <p className="font-bold">💡 Nomor Belum Terdaftar:</p>
+              <p>Masukkan nomor WhatsApp orang tua/wali siswa ini (contoh: <code>08123456789</code>). Nomor akan otomatis tersimpan ke profil siswa.</p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!waPhoneInput.trim()) return;
+                handleSendWAReminder(waModalData.invoice, waPhoneInput.trim());
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Nomor WhatsApp (HP):</label>
+                <input
+                  type="tel"
+                  required
+                  autoFocus
+                  placeholder="081234567890"
+                  value={waPhoneInput}
+                  onChange={(e) => setWaPhoneInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setWaModalData(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={waLoading || !waPhoneInput.trim()}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{waLoading ? 'Mengirim...' : 'Kirim Pesan WA'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL SUKSES WA REMINDER + DIRECT OPEN LINK ================= */}
+      {waSuccessModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 lg:p-7 space-y-5 shadow-2xl border border-slate-200 text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-lg font-black text-slate-800">Pengingat WA Berhasil Disiapkan!</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Pesan tagihan untuk ananda <strong>{waSuccessModal.studentName}</strong> siap dikirim ke nomor <strong>{waSuccessModal.phone}</strong> ({waSuccessModal.recipientName || 'Wali Murid'}).
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <a
+                href={waSuccessModal.whatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer block"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Buka Chat di WhatsApp Web / App Sekarang</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setWaSuccessModal(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Selesai
+              </button>
             </div>
           </div>
         </div>

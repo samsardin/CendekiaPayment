@@ -5,6 +5,7 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const { resolveEffectiveNominal } = require('./pos');
 const { logAudit } = require('../middleware/auditMiddleware');
 const { isParent, parentOwnsStudent } = require('../utils/parentAccess');
+const { sendWhatsApp } = require('../utils/whatsapp');
 
 // 12 Months of Academic Year (Tahun Ajaran Juli - Juni)
 const AY_MONTHS = [
@@ -577,6 +578,123 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
     });
   } catch (err) {
     console.error('Import excel invoices error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/invoices/:id/reminder - Send WA Reminder to Parent
+router.post('/:id/reminder', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir'), async (req, res) => {
+  try {
+    const invoiceId = req.params.id;
+    const { custom_phone } = req.body || {};
+
+    const invoice = await get(
+      `SELECT i.*, s.name as student_name, s.nis, c.name as class_name, u.name as unit_name,
+              pp.name as post_name, pp.code as post_code,
+              p.father_name, p.mother_name, p.phone as parent_phone
+       FROM invoices i
+       JOIN students s ON i.student_id = s.id
+       LEFT JOIN classes c ON s.class_id = c.id
+       LEFT JOIN units u ON s.unit_id = u.id
+       JOIN payment_posts pp ON i.post_id = pp.id
+       LEFT JOIN parents p ON s.parent_id = p.id
+       WHERE i.id = ?`,
+      [invoiceId]
+    );
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Tagihan tidak ditemukan' });
+    }
+
+    let targetPhone = custom_phone || invoice.parent_phone;
+    if (!targetPhone) {
+      return res.status(400).json({ 
+        success: false, 
+        needs_phone: true,
+        error: 'Nomor WhatsApp Orang Tua belum terdaftar di data siswa',
+        student_id: invoice.student_id,
+        student_name: invoice.student_name,
+        invoice_id: invoice.id
+      });
+    }
+
+    // Normalize phone number (0812... -> 62812...)
+    let cleanPhone = targetPhone.toString().replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.substring(1);
+    }
+
+    // If custom_phone provided, optionally update/link it to student's parent record
+    if (custom_phone) {
+      try {
+        const student = await get(`SELECT parent_id FROM students WHERE id = ?`, [invoice.student_id]);
+        if (student && student.parent_id) {
+          await run(`UPDATE parents SET phone = ? WHERE id = ?`, [cleanPhone, student.parent_id]);
+        } else {
+          const newParent = await run(
+            `INSERT INTO parents (father_name, phone) VALUES (?, ?)`,
+            [`Wali ${invoice.student_name}`, cleanPhone]
+          );
+          if (newParent.id) {
+            await run(`UPDATE students SET parent_id = ? WHERE id = ?`, [newParent.id, invoice.student_id]);
+          }
+        }
+      } catch (e) {
+        console.warn('Update parent phone notice:', e.message);
+      }
+    }
+
+    const nominal = parseFloat(invoice.nominal) || 0;
+    const discount = parseFloat(invoice.discount_amount) || 0;
+    const paid = parseFloat(invoice.paid_amount) || 0;
+    const remaining = Math.max(0, nominal - discount - paid);
+
+    let periodLabel = invoice.month_period || 'Tagihan Sekolah';
+    if (invoice.month_period && invoice.month_period.match(/^\d{4}-\d{2}$/)) {
+      const [y, m] = invoice.month_period.split('-');
+      const monthNames = { '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April', '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus', '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember' };
+      periodLabel = `${monthNames[m] || m} ${y}`;
+    }
+
+    const recipientName = invoice.father_name || invoice.mother_name || `Wali dari ${invoice.student_name}`;
+    const msg = `*PEMBERITAHUAN TAGIHAN SEKOLAH*\n*SEKOLAH ISLAM CENDEKIA LAMONGAN*\n\n` +
+      `Assalamu'alaikum Wr. Wb.\n` +
+      `Yth. Bapak/Ibu *${recipientName}*,\n\n` +
+      `Kami menginformasikan rincian tagihan pendidikan ananda:\n` +
+      `• *Nama Siswa*: ${invoice.student_name}\n` +
+      `• *NIS*: ${invoice.nis}\n` +
+      `• *Kelas/Unit*: ${invoice.class_name || '-'} (${invoice.unit_name || '-'})\n` +
+      `• *Pos Tagihan*: ${invoice.post_name} (${periodLabel})\n` +
+      `• *Total Tagihan*: Rp ${nominal.toLocaleString('id-ID')}\n` +
+      `• *Sudah Dibayar*: Rp ${paid.toLocaleString('id-ID')}\n` +
+      `• *SISA TAGIHAN*: *Rp ${remaining.toLocaleString('id-ID')}*\n` +
+      `• *Status*: ${invoice.status}\n\n` +
+      `Pembayaran dapat dilakukan melalui loket Kasir Sekolah atau ditransfer via portal resmi.\n\n` +
+      `_Pesan otomatis dari Sistem Keuangan Cendekia SFMS_`;
+
+    const waRes = await sendWhatsApp(cleanPhone, recipientName, msg, 'Reminder');
+    const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+
+    await logAudit(
+      req.user.id,
+      req.user.name,
+      req.user.role,
+      'SEND_WA_REMINDER',
+      'TAGIHAN',
+      `Kirim pengingat WA tagihan ${invoice.invoice_number} an. ${invoice.student_name} ke ${cleanPhone}`,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: `Pesan pengingat WhatsApp berhasil disiapkan & dikirim ke nomor ${cleanPhone}!`,
+      target_phone: cleanPhone,
+      recipient_name: recipientName,
+      whatsapp_url: waLink,
+      wa_status: waRes.status
+    });
+  } catch (err) {
+    console.error('Send WA reminder error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
