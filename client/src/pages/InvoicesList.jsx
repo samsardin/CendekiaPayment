@@ -1180,18 +1180,21 @@ export default function InvoicesList() {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {invoices.map((inv) => {
-                  const remaining = Math.max(0, inv.nominal - inv.discount_amount - inv.paid_amount);
+                  const nominalNum = Number(inv.nominal || 0);
+                  const discountNum = Number(inv.discount_amount || 0);
+                  const paidNum = Number(inv.paid_amount || 0);
+                  const remaining = Math.max(0, nominalNum - discountNum - paidNum);
 
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-slate-800">{inv.invoice_number}</td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-800">{inv.student_name}</div>
-                        <div className="text-[11px] text-slate-400">NIS: {inv.nis}</div>
+                        <div className="font-bold text-slate-800">{inv.student_name || '-'}</div>
+                        <div className="text-[11px] text-slate-400">NIS: {inv.nis || '-'}</div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <div>{inv.class_name}</div>
-                        <div className="text-[11px] text-slate-400">{inv.unit_name}</div>
+                        <div>{inv.class_name || '-'}</div>
+                        <div className="text-[11px] text-slate-400">{inv.unit_name || '-'}</div>
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="bg-emerald-50 text-emerald-800 font-semibold px-2 py-0.5 rounded border border-emerald-200">
@@ -1199,12 +1202,12 @@ export default function InvoicesList() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-bold">
-                        Rp {inv.nominal.toLocaleString('id-ID')}
-                        {inv.discount_amount > 0 && (
-                          <div className="text-[10px] text-emerald-600 font-extrabold">Diskon/Potongan: -Rp {inv.discount_amount.toLocaleString('id-ID')}</div>
+                        Rp {nominalNum.toLocaleString('id-ID')}
+                        {discountNum > 0 && (
+                          <div className="text-[10px] text-emerald-600 font-extrabold">Diskon/Potongan: -Rp {discountNum.toLocaleString('id-ID')}</div>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-emerald-700 font-semibold">Rp {inv.paid_amount.toLocaleString('id-ID')}</td>
+                      <td className="py-3.5 px-4 text-emerald-700 font-semibold">Rp {paidNum.toLocaleString('id-ID')}</td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">Rp {remaining.toLocaleString('id-ID')}</td>
                       <td className="py-3.5 px-4">
                         <span

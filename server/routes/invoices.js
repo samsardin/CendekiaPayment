@@ -132,11 +132,11 @@ router.get('/', verifyToken, async (req, res) => {
              pp.name as post_name, pp.code as post_code, pp.type as post_type,
              ay.name as academic_year
       FROM invoices i
-      JOIN students s ON i.student_id = s.id
-      JOIN classes c ON s.class_id = c.id
-      JOIN units u ON s.unit_id = u.id
-      JOIN payment_posts pp ON i.post_id = pp.id
-      JOIN academic_years ay ON i.academic_year_id = ay.id
+      LEFT JOIN students s ON i.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN units u ON s.unit_id = u.id
+      LEFT JOIN payment_posts pp ON i.post_id = pp.id
+      LEFT JOIN academic_years ay ON i.academic_year_id = ay.id
       WHERE 1=1
     `;
     let params = [];
