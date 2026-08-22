@@ -81,13 +81,12 @@ apiRouter.get('/health', (req, res) => {
 app.use('/api', apiRouter);
 app.use('/', apiRouter);
 
-// Initialize database & start server
 const startServer = async () => {
   try {
-    await seedData();
     app.listen(PORT, () => {
       console.log(`🚀 CendekiaPayment SFMS Server listening on http://localhost:${PORT}`);
     });
+    seedData().catch((err) => console.error('Seed notice:', err.message));
   } catch (err) {
     console.error('Failed to start server:', err);
   }

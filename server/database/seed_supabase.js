@@ -16,6 +16,16 @@ const seedSupabaseData = async () => {
       ['Bpk. Ahmad Subagyo (Ortu)', 'ortu.ahmad@gmail.com', '081298765432', defaultPassword, 'ortu']
     ];
 
+    // Check if database is already seeded to avoid slow repeated remote queries
+    const existingUsers = await get(`SELECT COUNT(*) as count FROM users`);
+    if (Number(existingUsers?.count || 0) >= 3) {
+      const existingInvoices = await get(`SELECT COUNT(*) as count FROM invoices`);
+      if (Number(existingInvoices?.count || 0) >= 50) {
+        console.log('✅ Supabase PostgreSQL data already seeded & ready.');
+        return;
+      }
+    }
+
     for (const u of usersData) {
       const existing = await get(`SELECT id FROM users WHERE email = ?`, [u[1]]);
       if (!existing) {
