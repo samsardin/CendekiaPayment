@@ -18,6 +18,7 @@ import KwitansiView from './pages/KwitansiView';
 import GatewaySettings from './pages/GatewaySettings';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
+import DatabaseMaintenance from './pages/DatabaseMaintenance';
 
 const ProtectedLayout = () => {
   const { user } = useAuth();
@@ -60,6 +61,8 @@ const ProtectedLayout = () => {
             <Route path="/gateway" element={<GatewaySettings />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/database-maintenance" element={<DatabaseMaintenance />} />
+            <Route path="/maintenance" element={<DatabaseMaintenance />} />
             <Route path="*" element={<Navigate to={currentUser.role === 'ortu' ? '/parent-portal' : '/dashboard'} replace />} />
           </Routes>
         </main>

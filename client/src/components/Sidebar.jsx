@@ -13,6 +13,7 @@ import {
   History, 
   UserCheck,
   School,
+  Database,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -47,11 +48,12 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
       ]
     },
     {
-      title: 'INTEGRASI & LAPORAN',
+      title: 'INTEGRASI & SISTEM',
       items: [
         { name: 'Payment & WA Gateway', path: '/gateway', icon: Smartphone, roles: ['superadmin', 'admin'] },
         { name: 'Laporan Keuangan', path: '/reports', icon: FilePieChart, roles: ['superadmin', 'admin'] },
-        { name: 'Audit Trail (Logs)', path: '/audit-logs', icon: History, roles: ['superadmin', 'admin'] }
+        { name: 'Audit Trail (Logs)', path: '/audit-logs', icon: History, roles: ['superadmin', 'admin'] },
+        { name: 'Pemeliharaan Database', path: '/database-maintenance', icon: Database, roles: ['superadmin', 'admin'] }
       ]
     }
   ];

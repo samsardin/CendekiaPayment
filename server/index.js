@@ -15,13 +15,14 @@ const gatewayRoutes = require('./routes/gateway');
 const reportsRoutes = require('./routes/reports');
 const dashboardRoutes = require('./routes/dashboard');
 const auditRoutes = require('./routes/audit');
+const maintenanceRoutes = require('./routes/maintenance');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 let isSeeded = false;
 app.use((req, res, next) => {
@@ -72,6 +73,7 @@ apiRouter.use('/gateway', gatewayRoutes);
 apiRouter.use('/reports', reportsRoutes);
 apiRouter.use('/dashboard', dashboardRoutes);
 apiRouter.use('/audit', auditRoutes);
+apiRouter.use('/maintenance', maintenanceRoutes);
 
 apiRouter.get('/health', (req, res) => {
   res.json({ success: true, message: 'CendekiaPayment Backend API Running', timestamp: new Date() });
