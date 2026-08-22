@@ -554,10 +554,5 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
     res.status(500).json({ success: false, error: err.message });
   }
 });
-  } catch (err) {
-    console.error('Import excel invoices error:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 module.exports = router;
