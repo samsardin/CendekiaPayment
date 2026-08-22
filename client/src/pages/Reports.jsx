@@ -182,65 +182,85 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs & Filter */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-        {/* Navigation Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto p-1">
+      {/* Tier 1: Sub-Navigation Segmented Bar */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-slate-100/90 p-1.5 rounded-xl text-xs font-extrabold">
           {[
-            { id: 'summary', label: 'Ringkasan Keuangan' },
-            { id: 'income-statement', label: 'Laporan Laba Rugi (Aktivitas)' },
-            { id: 'ledger', label: 'Kartu Piutang Siswa' },
-            { id: 'by-post', label: 'Laporan Per Pos' },
-            { id: 'by-class', label: 'Laporan Per Kelas' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: 'summary', label: 'Ringkasan Keuangan', icon: FilePieChart },
+            { id: 'income-statement', label: 'Laba Rugi (Aktivitas)', icon: Scale },
+            { id: 'ledger', label: 'Kartu Piutang Siswa', icon: Search },
+            { id: 'by-post', label: 'Laporan Per Pos', icon: BookOpen },
+            { id: 'by-class', label: 'Laporan Per Kelas', icon: School }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tier 2: Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span className="text-xs font-bold text-slate-700">
+            Menampilkan: <strong className="text-slate-900">
+              {activeTab === 'summary' && 'Ringkasan Eksekutif Keuangan'}
+              {activeTab === 'income-statement' && 'Laporan Laba Rugi / Pendapatan vs Beban'}
+              {activeTab === 'ledger' && 'Kartu Pembantu Piutang Siswa'}
+              {activeTab === 'by-post' && 'Rekapitulasi Penerimaan Per Pos Tagihan'}
+              {activeTab === 'by-class' && 'Rekapitulasi Tagihan Per Rombel Kelas'}
+            </strong>
+          </span>
         </div>
 
-        {/* Filter Controls: Periode Bulan & Jenjang Sekolah */}
-        <div className="flex items-center gap-2.5 px-1 flex-wrap">
+        {/* Filter Controls */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Filter Bulan */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Periode:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Periode:</span>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+              className="bg-transparent text-slate-800 text-xs font-bold focus:outline-none cursor-pointer"
             />
             {selectedMonth && (
               <button
                 onClick={() => setSelectedMonth('')}
-                className="text-[10px] text-slate-400 hover:text-rose-600 font-bold"
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-bold ml-1"
                 title="Reset Bulan"
               >
-                Reset
+                ✕ Reset
               </button>
             )}
           </div>
 
           {/* Filter Jenjang */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jenjang:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Jenjang:</span>
             <select
               value={selectedUnit}
               onChange={(e) => setSelectedUnit(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+              className="bg-transparent text-slate-800 text-xs font-bold focus:outline-none cursor-pointer"
             >
               <option value="">Semua Jenjang</option>
               {units.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.code}
+                  {u.name} ({u.code})
                 </option>
               ))}
             </select>
