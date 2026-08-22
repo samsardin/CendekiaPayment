@@ -224,12 +224,22 @@ router.get('/students', verifyToken, async (req, res) => {
       params.push(status);
     }
     if (search && search.trim()) {
-      const searchClean = `%${search.trim().toLowerCase()}%`;
+      const q = search.trim().toLowerCase();
+      const searchClean = `%${q}%`;
+      const prefixClean = `${q}%`;
+      const wordPrefixClean = `% ${q}%`;
       sql += ` AND (LOWER(COALESCE(s.name, '')) LIKE ? OR LOWER(COALESCE(s.nis, '')) LIKE ? OR LOWER(COALESCE(s.nisn, '')) LIKE ?)`;
       params.push(searchClean, searchClean, searchClean);
+      sql += ` ORDER BY 
+        CASE 
+          WHEN LOWER(COALESCE(s.name, '')) LIKE ? THEN 1 
+          WHEN LOWER(COALESCE(s.name, '')) LIKE ? THEN 2 
+          ELSE 3 
+        END, s.name ASC`;
+      params.push(prefixClean, wordPrefixClean);
+    } else {
+      sql += ` ORDER BY s.name ASC`;
     }
-
-    sql += ` ORDER BY s.name ASC`;
     const data = await query(sql, params);
     res.json({ success: true, data: data || [] });
   } catch (err) {

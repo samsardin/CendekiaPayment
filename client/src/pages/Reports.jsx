@@ -44,7 +44,10 @@ export default function Reports() {
   const [selectedUnit, setSelectedUnit] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
 
-  // Kartu Piutang Search
+  // Kartu Piutang Search & Hierarchy Filters
+  const [allClasses, setAllClasses] = useState([]);
+  const [ledgerUnit, setLedgerUnit] = useState('');
+  const [ledgerClass, setLedgerClass] = useState('');
   const [students, setStudents] = useState([]);
   const [stSearch, setStSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -69,12 +72,13 @@ export default function Reports() {
       if (selectedMonth) params.push(`month_period=${selectedMonth}`);
       const queryStr = params.length > 0 ? `?${params.join('&')}` : '';
 
-      const [sumRes, incRes, postRes, classRes, unitRes] = await Promise.all([
+      const [sumRes, incRes, postRes, classRes, unitRes, clsRes] = await Promise.all([
         api.get(`/reports/summary${queryStr}`),
         api.get(`/reports/income-statement${queryStr}`),
         api.get(`/reports/by-post${queryStr}`),
         api.get(`/reports/by-class${queryStr}`),
-        api.get('/master/units')
+        api.get('/master/units'),
+        api.get('/master/classes')
       ]);
 
       if (sumRes.data.success) setSummary(sumRes.data);
@@ -82,6 +86,7 @@ export default function Reports() {
       if (postRes.data.success) setByPost(postRes.data.data);
       if (classRes.data.success) setByClass(classRes.data.data);
       if (unitRes.data.success) setUnits(unitRes.data.data);
+      if (clsRes.data.success) setAllClasses(clsRes.data.data);
     } catch (err) {
       console.error('Fetch reports error:', err);
     } finally {
@@ -89,12 +94,34 @@ export default function Reports() {
     }
   };
 
-  const handleSearchStudentLedger = async (query) => {
-    setStSearch(query);
-    if (query.length >= 2) {
+  const handleSearchStudentLedger = async (queryVal = stSearch, unitVal = ledgerUnit, classVal = ledgerClass) => {
+    setStSearch(queryVal);
+    const q = (queryVal || '').trim();
+    
+    // Instant search even with 1 letter OR when class/unit filter is chosen
+    if (q.length >= 1 || unitVal || classVal) {
       try {
-        const res = await api.get(`/master/students?search=${encodeURIComponent(query)}`);
-        if (res.data.success) setStudents(res.data.data);
+        const params = [];
+        if (q) params.push(`search=${encodeURIComponent(q)}`);
+        if (unitVal) params.push(`unit_id=${unitVal}`);
+        if (classVal) params.push(`class_id=${classVal}`);
+        const res = await api.get(`/master/students?${params.join('&')}`);
+        if (res.data.success) {
+          // Sort results: prioritize names starting with typed letter
+          const sorted = [...(res.data.data || [])].sort((a, b) => {
+            const aName = (a.name || '').toLowerCase();
+            const bName = (b.name || '').toLowerCase();
+            const queryLower = q.toLowerCase();
+            if (queryLower) {
+              const aStarts = aName.startsWith(queryLower);
+              const bStarts = bName.startsWith(queryLower);
+              if (aStarts && !bStarts) return -1;
+              if (!aStarts && bStarts) return 1;
+            }
+            return aName.localeCompare(bName);
+          });
+          setStudents(sorted);
+        }
       } catch (err) {
         console.error(err);
       }
@@ -504,44 +531,128 @@ export default function Reports() {
       {/* ================= TAB 3: KARTU PIUTANG SISWA ================= */}
       {activeTab === 'ledger' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7 space-y-6">
-          <div className="space-y-2">
-            <h3 className="font-extrabold text-slate-800 text-base">Cari Kartu Piutang Siswa (Buku Pembantu)</h3>
-            <p className="text-xs text-slate-500">Ketik nama siswa atau NIS untuk melihat rincian seluruh histori kewajiban dan pembayaran</p>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-base">Cari Kartu Piutang Siswa (Buku Pembantu)</h3>
+              <p className="text-xs text-slate-500">Filter berdasarkan Jenjang &amp; Kelas atau ketik huruf awalan nama / NIS siswa</p>
+            </div>
 
-            <div className="relative max-w-md mt-2">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={stSearch}
-                onChange={(e) => handleSearchStudentLedger(e.target.value)}
-                placeholder="Ketik nama atau NIS siswa..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400"
-              />
-
-              {students.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 z-30 max-h-56 overflow-y-auto divide-y divide-slate-100">
-                  {students.map((st) => (
-                    <button
-                      key={st.id}
-                      onClick={() => {
-                        setSelectedStudent(st);
-                        setStudents([]);
-                        setStSearch('');
-                        fetchStudentLedger(st.id);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-emerald-50/50 text-xs flex items-center justify-between transition-colors cursor-pointer"
-                    >
-                      <div>
-                        <span className="font-extrabold text-slate-900 block">{st.name}</span>
-                        <span className="text-slate-400 text-[11px]">Kelas: {st.class_name || '-'} ({st.unit_name || 'Unit'})</span>
-                      </div>
-                      <span className="font-mono text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                        NIS: {st.nis}
-                      </span>
-                    </button>
+            {/* 3-Tier Filter Bar: Jenjang, Kelas, Nama */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              {/* 1. Filter Jenjang */}
+              <div className="sm:col-span-3 space-y-1">
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  1. Pilih Jenjang:
+                </label>
+                <select
+                  value={ledgerUnit}
+                  onChange={(e) => {
+                    const newUnit = e.target.value;
+                    setLedgerUnit(newUnit);
+                    setLedgerClass('');
+                    handleSearchStudentLedger(stSearch, newUnit, '');
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="">Semua Jenjang</option>
+                  {units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.code})
+                    </option>
                   ))}
+                </select>
+              </div>
+
+              {/* 2. Filter Kelas */}
+              <div className="sm:col-span-4 space-y-1">
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  2. Pilih Kelas:
+                </label>
+                <select
+                  value={ledgerClass}
+                  onChange={(e) => {
+                    const newClass = e.target.value;
+                    setLedgerClass(newClass);
+                    handleSearchStudentLedger(stSearch, ledgerUnit, newClass);
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="">Semua Kelas</option>
+                  {allClasses
+                    .filter((c) => !ledgerUnit || String(c.unit_id) === String(ledgerUnit))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.unit_name || 'Unit'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* 3. Input Nama / NIS */}
+              <div className="sm:col-span-5 space-y-1 relative">
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  3. Ketik Nama / NIS Siswa:
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={stSearch}
+                    onChange={(e) => handleSearchStudentLedger(e.target.value, ledgerUnit, ledgerClass)}
+                    placeholder="Ketik 1 huruf misal 'z'..."
+                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                  {stSearch && (
+                    <button
+                      onClick={() => handleSearchStudentLedger('', ledgerUnit, ledgerClass)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {/* Dropdown Results List */}
+                {students.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 z-40 max-h-64 overflow-y-auto divide-y divide-slate-100">
+                    <div className="p-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
+                      <span>Ditemukan {students.length} Siswa:</span>
+                      <span className="text-emerald-700">Urutan Awalan Huruf</span>
+                    </div>
+                    {students.map((st) => {
+                      const isPrefixMatch = stSearch && (st.name || '').toLowerCase().startsWith(stSearch.trim().toLowerCase());
+                      return (
+                        <button
+                          key={st.id}
+                          onClick={() => {
+                            setSelectedStudent(st);
+                            setStudents([]);
+                            fetchStudentLedger(st.id);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-50/70 text-xs flex items-center justify-between transition-colors cursor-pointer"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-slate-900">{st.name}</span>
+                              {isPrefixMatch && (
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-1.5 py-0.2 rounded">
+                                  Awalan
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-slate-400 text-[10px] block">
+                              Kelas: <strong>{st.class_name || '-'}</strong> &bull; {st.unit_name || 'Unit'}
+                            </span>
+                          </div>
+                          <span className="font-mono text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded text-[10px]">
+                            NIS: {st.nis}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
