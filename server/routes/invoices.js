@@ -312,7 +312,9 @@ router.post('/custom-monthly-spp', verifyToken, authorizeRoles('superadmin', 'ad
   }
 });
 
-// Bulk Import Invoices from Excel (.xlsx)
+// Bulk Import Invoices from Excel (.xlsx) - Supports both:
+// 1. Matrix Format: 1 Row per Student with columns for all posts & SPP months
+// 2. Transactional Format: 1 Row per Invoice
 router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir'), async (req, res) => {
   try {
     const { items } = req.body;
@@ -334,95 +336,51 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
 
     const posts = await query(`SELECT id, code, name, unit_id, default_nominal, type FROM payment_posts`);
 
+    const monthMap = {
+      'juli': '2026-07', 'jul': '2026-07', '07': '2026-07',
+      'agustus': '2026-08', 'ags': '2026-08', 'agu': '2026-08', '08': '2026-08',
+      'september': '2026-09', 'sep': '2026-09', '09': '2026-09',
+      'oktober': '2026-10', 'okt': '2026-10', '10': '2026-10',
+      'november': '2026-11', 'nov': '2026-11', '11': '2026-11',
+      'desember': '2026-12', 'des': '2026-12', '12': '2026-12',
+      'januari': '2027-01', 'jan': '2027-01', '01': '2027-01',
+      'februari': '2027-02', 'feb': '2027-02', '02': '2027-02',
+      'maret': '2027-03', 'mar': '2027-03', '03': '2027-03',
+      'april': '2027-04', 'apr': '2027-04', '04': '2027-04',
+      'mei': '2027-05', 'may': '2027-05', '05': '2027-05',
+      'juni': '2027-06', 'jun': '2027-06', '06': '2027-06'
+    };
+
     let updatedCount = 0;
     let createdCount = 0;
     let skippedCount = 0;
     const errors = [];
 
-    for (let i = 0; i < items.length; i++) {
-      const row = items[i];
-      const rowNum = i + 2;
-      const rawNis = row.nis || row.NIS || row['No. Induk'] || row['NIS Siswa'];
-      const rawName = row.name || row.nama || row['Nama Siswa'] || row['Nama'];
-      const rawPost = row.post || row.pos || row['Pos Pembayaran'] || row['Pos'] || row['Jenis Pembayaran'];
-      const rawPeriod = row.period || row.bulan || row['Bulan / Periode'] || row['Periode'] || row['Bulan'];
-      const rawNominal = row.nominal || row['Nominal Tagihan'] || row['Nominal'] || row['Tarif'];
-      const rawDiscount = row.discount || row.potongan || row['Potongan'] || row['Diskon'] || 0;
-      const rawPaid = row.paid || row.dibayar || row['Sudah Dibayar'] || row['Terbayar'] || row['Bayar'] || 0;
+    // Helper to process a single invoice item for a student
+    const processSingleInvoice = async (student, post, normalizedPeriod, rawVal, rawDiscount = 0, rawPaid = null) => {
+      let nominal = post.default_nominal || 0;
+      let discount = parseFloat(rawDiscount) >= 0 ? parseFloat(rawDiscount) : 0;
+      let paid = 0;
+      let isLunasText = false;
 
-      if (!rawNis && !rawName) {
-        skippedCount++;
-        continue;
-      }
-
-      const student = (rawNis && studentMap[String(rawNis).trim()]) || 
-                      (rawName && studentMap[String(rawName).trim().toLowerCase()]);
-
-      if (!student) {
-        errors.push(`Baris ${rowNum}: Siswa NIS "${rawNis || '-'}" (${rawName || '-'}) belum terdaftar di Data Siswa.`);
-        skippedCount++;
-        continue;
-      }
-
-      // Match payment post
-      let post = null;
-      if (rawPost) {
-        const postSearch = String(rawPost).trim().toLowerCase();
-        post = posts.find(p => 
-          (p.unit_id === student.unit_id || !p.unit_id) && 
-          (p.code.toLowerCase() === postSearch || p.name.toLowerCase() === postSearch || p.name.toLowerCase().includes(postSearch))
-        );
-        if (!post) {
-          post = posts.find(p => 
-            p.code.toLowerCase() === postSearch || p.name.toLowerCase() === postSearch || p.name.toLowerCase().includes(postSearch)
-          );
+      if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+        const valStr = String(rawVal).trim();
+        const numVal = parseFloat(valStr.replace(/[^\d.-]/g, ''));
+        if (!isNaN(numVal)) {
+          nominal = numVal;
+        }
+        if (valStr.toLowerCase().includes('lunas') || valStr.toLowerCase() === 'l') {
+          isLunasText = true;
         }
       }
 
-      if (!post && (String(rawPost || '').toLowerCase().includes('spp') || rawPeriod)) {
-        post = posts.find(p => (p.unit_id === student.unit_id || !p.unit_id) && p.code.toLowerCase().includes('spp'));
+      if (rawPaid !== null && rawPaid !== undefined && rawPaid !== '') {
+        const pNum = parseFloat(String(rawPaid).replace(/[^\d.-]/g, ''));
+        if (!isNaN(pNum)) paid = pNum;
+      } else if (isLunasText) {
+        paid = Math.max(0, nominal - discount);
       }
 
-      if (!post) {
-        errors.push(`Baris ${rowNum}: Pos pembayaran "${rawPost}" tidak ditemukan.`);
-        skippedCount++;
-        continue;
-      }
-
-      let normalizedPeriod = null;
-      if (rawPeriod) {
-        const pStr = String(rawPeriod).trim();
-        const yymmMatch = pStr.match(/^(\d{4})-(\d{2})$/);
-        if (yymmMatch) {
-          normalizedPeriod = pStr;
-        } else {
-          const monthMap = {
-            'juli': '2026-07', 'jul': '2026-07', '07': '2026-07', '7': '2026-07',
-            'agustus': '2026-08', 'ags': '2026-08', 'agu': '2026-08', '08': '2026-08', '8': '2026-08',
-            'september': '2026-09', 'sep': '2026-09', '09': '2026-09', '9': '2026-09',
-            'oktober': '2026-10', 'okt': '2026-10', '10': '2026-10',
-            'november': '2026-11', 'nov': '2026-11', '11': '2026-11',
-            'desember': '2026-12', 'des': '2026-12', '12': '2026-12',
-            'januari': '2027-01', 'jan': '2027-01', '01': '2027-01', '1': '2027-01',
-            'februari': '2027-02', 'feb': '2027-02', '02': '2027-02', '2': '2027-02',
-            'maret': '2027-03', 'mar': '2027-03', '03': '2027-03', '3': '2027-03',
-            'april': '2027-04', 'apr': '2027-04', '04': '2027-04', '4': '2027-04',
-            'mei': '2027-05', 'may': '2027-05', '05': '2027-05', '5': '2027-05',
-            'juni': '2027-06', 'jun': '2027-06', '06': '2027-06', '6': '2027-06'
-          };
-          const lowStr = pStr.toLowerCase();
-          for (const [k, v] of Object.entries(monthMap)) {
-            if (lowStr.includes(k)) {
-              normalizedPeriod = v;
-              break;
-            }
-          }
-        }
-      }
-
-      const nominal = parseFloat(rawNominal) >= 0 ? parseFloat(rawNominal) : (post.default_nominal || 0);
-      const discount = parseFloat(rawDiscount) >= 0 ? parseFloat(rawDiscount) : 0;
-      const paid = parseFloat(rawPaid) >= 0 ? parseFloat(rawPaid) : 0;
       const effectiveNominal = Math.max(0, nominal - discount);
       let status = 'Belum Dibayar';
       if (paid >= effectiveNominal && effectiveNominal > 0) {
@@ -461,6 +419,116 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
         );
         createdCount++;
       }
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      const row = items[i];
+      const rowNum = i + 2;
+      const rawNis = row.nis || row.NIS || row['No. Induk'] || row['NIS Siswa'];
+      const rawName = row.name || row.nama || row['Nama Siswa'] || row['Nama'];
+
+      if (!rawNis && !rawName) {
+        skippedCount++;
+        continue;
+      }
+
+      const student = (rawNis && studentMap[String(rawNis).trim()]) || 
+                      (rawName && studentMap[String(rawName).trim().toLowerCase()]);
+
+      if (!student) {
+        errors.push(`Baris ${rowNum}: Siswa NIS "${rawNis || '-'}" (${rawName || '-'}) belum terdaftar di Data Siswa.`);
+        skippedCount++;
+        continue;
+      }
+
+      // Check if this row is Matrix Format (1 Siswa = 1 Baris dengan banyak kolom pos/bulan)
+      const hasSpecificPostColumn = row['Pos Pembayaran'] || row.post || row.pos;
+      if (!hasSpecificPostColumn) {
+        // MATRIX FORMAT: Iterate all columns in row
+        const metaKeys = ['no', 'nis', 'nama', 'nama siswa', 'kelas', 'unit', 'jenjang', 'keterangan', 'status', 'total', 'sisa'];
+        const sppPost = posts.find(p => (p.unit_id === student.unit_id || !p.unit_id) && p.code.toLowerCase().includes('spp')) ||
+                        posts.find(p => p.code.toLowerCase().includes('spp'));
+
+        for (const [colKey, colVal] of Object.entries(row)) {
+          const colClean = colKey.trim().toLowerCase();
+          if (metaKeys.includes(colClean) || colClean.startsWith('__')) continue;
+          if (colVal === undefined || colVal === null || String(colVal).trim() === '') continue;
+
+          // Check if column is a SPP month
+          let isMonthCol = false;
+          let matchedPeriod = null;
+          for (const [mName, mCode] of Object.entries(monthMap)) {
+            if (colClean.includes(mName)) {
+              isMonthCol = true;
+              matchedPeriod = mCode;
+              break;
+            }
+          }
+
+          if (isMonthCol && sppPost) {
+            await processSingleInvoice(student, sppPost, matchedPeriod, colVal);
+          } else {
+            // Match Non-SPP post
+            const post = posts.find(p => 
+              (p.unit_id === student.unit_id || !p.unit_id) && 
+              (p.name.toLowerCase() === colClean || p.name.toLowerCase().includes(colClean) || colClean.includes(p.name.toLowerCase()) || p.code.toLowerCase() === colClean)
+            ) || posts.find(p => 
+              p.name.toLowerCase() === colClean || p.name.toLowerCase().includes(colClean) || colClean.includes(p.name.toLowerCase()) || p.code.toLowerCase() === colClean
+            );
+
+            if (post) {
+              await processSingleInvoice(student, post, null, colVal);
+            }
+          }
+        }
+      } else {
+        // STANDARD TRANSACTIONAL FORMAT (1 Row = 1 Invoice)
+        const rawPost = row.post || row.pos || row['Pos Pembayaran'] || row['Pos'] || row['Jenis Pembayaran'];
+        const rawPeriod = row.period || row.bulan || row['Bulan / Periode'] || row['Periode'] || row['Bulan'];
+        const rawNominal = row.nominal || row['Nominal Tagihan'] || row['Nominal'] || row['Tarif'];
+        const rawDiscount = row.discount || row.potongan || row['Potongan'] || row['Diskon'] || 0;
+        const rawPaid = row.paid || row.dibayar || row['Sudah Dibayar'] || row['Terbayar'] || row['Bayar'];
+
+        let post = null;
+        if (rawPost) {
+          const postSearch = String(rawPost).trim().toLowerCase();
+          post = posts.find(p => 
+            (p.unit_id === student.unit_id || !p.unit_id) && 
+            (p.code.toLowerCase() === postSearch || p.name.toLowerCase() === postSearch || p.name.toLowerCase().includes(postSearch))
+          ) || posts.find(p => 
+            p.code.toLowerCase() === postSearch || p.name.toLowerCase() === postSearch || p.name.toLowerCase().includes(postSearch)
+          );
+        }
+
+        if (!post && (String(rawPost || '').toLowerCase().includes('spp') || rawPeriod)) {
+          post = posts.find(p => (p.unit_id === student.unit_id || !p.unit_id) && p.code.toLowerCase().includes('spp'));
+        }
+
+        if (!post) {
+          errors.push(`Baris ${rowNum}: Pos pembayaran "${rawPost}" tidak ditemukan.`);
+          skippedCount++;
+          continue;
+        }
+
+        let normalizedPeriod = null;
+        if (rawPeriod) {
+          const pStr = String(rawPeriod).trim();
+          const yymmMatch = pStr.match(/^(\d{4})-(\d{2})$/);
+          if (yymmMatch) {
+            normalizedPeriod = pStr;
+          } else {
+            const lowStr = pStr.toLowerCase();
+            for (const [k, v] of Object.entries(monthMap)) {
+              if (lowStr.includes(k)) {
+                normalizedPeriod = v;
+                break;
+              }
+            }
+          }
+        }
+
+        await processSingleInvoice(student, post, normalizedPeriod, rawNominal, rawDiscount, rawPaid);
+      }
     }
 
     await logAudit(
@@ -481,6 +549,11 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
       skippedCount,
       errors: errors.slice(0, 10)
     });
+  } catch (err) {
+    console.error('Import excel invoices error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
   } catch (err) {
     console.error('Import excel invoices error:', err);
     res.status(500).json({ success: false, error: err.message });

@@ -858,55 +858,112 @@ export default function InvoicesList() {
     XLSX.writeFile(workbook, `Tagihan_${student.nis}_${cleanName}.xlsx`);
   };
 
-  const handleDownloadInvoiceTemplateExcel = () => {
-    const templateRows = [
-      {
-        'NIS': '26001',
-        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
-        'Pos Pembayaran': 'SPP',
-        'Bulan / Periode': 'Juli 2026',
-        'Nominal Tagihan': 450000,
-        'Potongan': 0,
-        'Sudah Dibayar': 450000,
-        'Keterangan': 'Contoh SPP Lunas (Semester 1)'
-      },
-      {
-        'NIS': '26001',
-        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
-        'Pos Pembayaran': 'SPP',
-        'Bulan / Periode': 'Agustus 2026',
-        'Nominal Tagihan': 450000,
-        'Potongan': 0,
-        'Sudah Dibayar': 0,
-        'Keterangan': 'Contoh SPP Belum Bayar'
-      },
-      {
-        'NIS': '26001',
-        'Nama Siswa': 'Ahmad Zaki Al-Fatih',
-        'Pos Pembayaran': 'Infaq Pembangunan SDIT',
-        'Bulan / Periode': '',
-        'Nominal Tagihan': 4500000,
-        'Potongan': 500000,
-        'Sudah Dibayar': 4000000,
-        'Keterangan': 'Contoh Non-SPP (Infaq Gedung)'
-      },
-      {
-        'NIS': '26002',
-        'Nama Siswa': 'Fatimah Az-Zahra',
-        'Pos Pembayaran': 'SPP',
-        'Bulan / Periode': 'Juli 2026',
-        'Nominal Tagihan': 350000,
-        'Potongan': 0,
-        'Sudah Dibayar': 350000,
-        'Keterangan': 'Contoh Siswa KBTK'
+  const handleDownloadInvoiceTemplateExcel = async () => {
+    try {
+      // Fetch registered students to pre-fill template if available
+      let stList = [];
+      try {
+        const res = await api.get('/master/students');
+        if (res.data?.success && res.data.data?.length > 0) {
+          stList = res.data.data;
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Import Tagihan');
+      let templateRows = [];
 
-    XLSX.writeFile(workbook, 'Template_Import_Tagihan_Cendekia.xlsx');
+      if (stList.length > 0) {
+        // Pre-fill template with registered students
+        templateRows = stList.map((st, idx) => {
+          const isKbtk = (st.unit_name || '').toUpperCase().includes('KBTK') || (st.unit_code || '').toUpperCase().includes('KBTK');
+          const defaultSpp = isKbtk ? 350000 : 450000;
+
+          return {
+            'NIS': st.nis,
+            'Nama Siswa': st.name,
+            'Jenjang': st.unit_name || (isKbtk ? 'KBTK-IT' : 'SDIT'),
+            'Kelas': st.class_name || '-',
+            'SPP Juli 2026': defaultSpp,
+            'SPP Agustus 2026': defaultSpp,
+            'SPP September 2026': defaultSpp,
+            'SPP Oktober 2026': defaultSpp,
+            'SPP November 2026': defaultSpp,
+            'SPP Desember 2026': defaultSpp,
+            'SPP Januari 2027': defaultSpp,
+            'SPP Februari 2027': defaultSpp,
+            'SPP Maret 2027': defaultSpp,
+            'SPP April 2027': defaultSpp,
+            'SPP Mei 2027': defaultSpp,
+            'SPP Juni 2027': defaultSpp,
+            'Infaq Pembangunan': isKbtk ? 3500000 : 4500000,
+            'Seragam & Atribut': isKbtk ? 950000 : 1200000,
+            'Buku Paket & Modul': isKbtk ? 600000 : 850000,
+            'Kegiatan & Rihlah': isKbtk ? 350000 : 450000,
+            'Komite Sekolah': 150000
+          };
+        });
+      } else {
+        // Fallback sample rows if no students registered yet
+        templateRows = [
+          {
+            'NIS': '26001',
+            'Nama Siswa': 'Ahmad Zaki Al-Fatih',
+            'Jenjang': 'SDIT Cendekia',
+            'Kelas': 'Kelas 1A',
+            'SPP Juli 2026': 450000,
+            'SPP Agustus 2026': 450000,
+            'SPP September 2026': 450000,
+            'SPP Oktober 2026': 450000,
+            'SPP November 2026': 450000,
+            'SPP Desember 2026': 450000,
+            'SPP Januari 2027': 450000,
+            'SPP Februari 2027': 450000,
+            'SPP Maret 2027': 450000,
+            'SPP April 2027': 450000,
+            'SPP Mei 2027': 450000,
+            'SPP Juni 2027': 450000,
+            'Infaq Pembangunan': 4500000,
+            'Seragam & Atribut': 1200000,
+            'Buku Paket & Modul': 850000,
+            'Kegiatan & Rihlah': 450000,
+            'Komite Sekolah': 150000
+          },
+          {
+            'NIS': '26002',
+            'Nama Siswa': 'Fatimah Az-Zahra',
+            'Jenjang': 'KBTK-IT Cendekia',
+            'Kelas': 'Kelas B1',
+            'SPP Juli 2026': 350000,
+            'SPP Agustus 2026': 350000,
+            'SPP September 2026': 350000,
+            'SPP Oktober 2026': 350000,
+            'SPP November 2026': 350000,
+            'SPP Desember 2026': 350000,
+            'SPP Januari 2027': 350000,
+            'SPP Februari 2027': 350000,
+            'SPP Maret 2027': 350000,
+            'SPP April 2027': 350000,
+            'SPP Mei 2027': 350000,
+            'SPP Juni 2027': 350000,
+            'Infaq Pembangunan': 3500000,
+            'Seragam & Atribut': 950000,
+            'Buku Paket & Modul': 600000,
+            'Kegiatan & Rihlah': 350000,
+            'Komite Sekolah': 150000
+          }
+        ];
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(templateRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap Tagihan Siswa');
+
+      XLSX.writeFile(workbook, 'Template_Rekap_Tagihan_Siswa_1_Baris.xlsx');
+    } catch (err) {
+      console.error('Download template error:', err);
+      alert('Gagal mendownload template Excel.');
+    }
   };
 
   const handleExcelFileChange = (e) => {
