@@ -22,7 +22,12 @@ import {
   Check,
   Calendar,
   Layers,
-  Coins
+  Coins,
+  Printer,
+  FileText,
+  Download,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 
 const AY_MONTHS = [
@@ -89,6 +94,19 @@ export default function InvoicesList() {
   const [wizTargetInvoiceId, setWizTargetInvoiceId] = useState(null);
   const [wizReason, setWizReason] = useState('Beasiswa / Tarif Khusus Siswa');
   const [wizSaveLoading, setWizSaveLoading] = useState(false);
+
+  // Export Student Invoices PDF Modal State
+  const [showExportPdfModal, setShowExportPdfModal] = useState(false);
+  const [exportStep, setExportStep] = useState(1); // 1: Choose Student, 2: Select Posts & Print
+  const [exportUnit, setExportUnit] = useState(null);
+  const [exportClass, setExportClass] = useState(null);
+  const [exportClassesList, setExportClassesList] = useState([]);
+  const [exportStudent, setExportStudent] = useState(null);
+  const [exportStudentsList, setExportStudentsList] = useState([]);
+  const [exportStudentSearch, setExportStudentSearch] = useState('');
+  const [exportInvoices, setExportInvoices] = useState([]);
+  const [exportSelectedInvoiceIds, setExportSelectedInvoiceIds] = useState([]);
+  const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -348,6 +366,335 @@ export default function InvoicesList() {
     s.nis.toLowerCase().includes(wizStudentSearch.toLowerCase())
   );
 
+  // ================= EXPORT TAGIHAN SISWA PDF HANDLERS =================
+  const handleOpenExportPdfModal = async () => {
+    setShowExportPdfModal(true);
+    setExportStep(1);
+    setExportUnit(null);
+    setExportClass(null);
+    setExportStudent(null);
+    setExportStudentSearch('');
+    setExportInvoices([]);
+    setExportSelectedInvoiceIds([]);
+    try {
+      const res = await api.get('/master/students');
+      if (res.data && res.data.success) {
+        setExportStudentsList(res.data.data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleExportSelectUnit = async (unit) => {
+    setExportUnit(unit);
+    setExportClass(null);
+    setExportStudent(null);
+    try {
+      const res = await api.get(`/master/classes?unit_id=${unit.id}`);
+      if (res.data.success) setExportClassesList(res.data.data);
+      const sRes = await api.get(`/master/students?unit_id=${unit.id}`);
+      if (sRes.data.success) setExportStudentsList(sRes.data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleExportSelectClass = async (cls) => {
+    setExportClass(cls);
+    setExportStudent(null);
+    try {
+      const res = await api.get(`/master/students?class_id=${cls.id}`);
+      if (res.data.success) setExportStudentsList(res.data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleExportSelectStudent = async (student) => {
+    setExportStudent(student);
+    setExportLoading(true);
+    try {
+      const res = await api.get(`/invoices?student_id=${student.id}`);
+      if (res.data && res.data.success) {
+        const invData = res.data.data || [];
+        setExportInvoices(invData);
+        setExportSelectedInvoiceIds(invData.map(i => i.id));
+        setExportStep(2);
+      }
+    } catch (err) {
+      console.error('Fetch student invoices error:', err);
+      alert('Gagal memuat rincian tagihan siswa');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleDirectExportStudentPdf = async (inv) => {
+    const studentObj = {
+      id: inv.student_id,
+      name: inv.student_name,
+      nis: inv.nis,
+      class_name: inv.class_name,
+      unit_name: inv.unit_name
+    };
+    setShowExportPdfModal(true);
+    setExportStudent(studentObj);
+    setExportLoading(true);
+    try {
+      const res = await api.get(`/invoices?student_id=${inv.student_id}`);
+      if (res.data && res.data.success) {
+        const invData = res.data.data || [];
+        setExportInvoices(invData);
+        setExportSelectedInvoiceIds(invData.map(i => i.id));
+        setExportStep(2);
+      }
+    } catch (err) {
+      console.error('Fetch student invoices error:', err);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const toggleSelectAllExportInvoices = () => {
+    if (exportSelectedInvoiceIds.length === exportInvoices.length) {
+      setExportSelectedInvoiceIds([]);
+    } else {
+      setExportSelectedInvoiceIds(exportInvoices.map(i => i.id));
+    }
+  };
+
+  const toggleSelectExportInvoice = (invoiceId) => {
+    if (exportSelectedInvoiceIds.includes(invoiceId)) {
+      setExportSelectedInvoiceIds(exportSelectedInvoiceIds.filter(id => id !== invoiceId));
+    } else {
+      setExportSelectedInvoiceIds([...exportSelectedInvoiceIds, invoiceId]);
+    }
+  };
+
+  const handlePrintOrDownloadPdf = () => {
+    const student = exportStudent;
+    const invList = exportInvoices.filter(i => exportSelectedInvoiceIds.includes(i.id));
+
+    if (!student || invList.length === 0) {
+      alert('Mohon pilih minimal 1 pos tagihan untuk dicetak.');
+      return;
+    }
+
+    const printWin = window.open('', '_blank', 'width=950,height=850');
+    if (!printWin) {
+      alert('Mohon izinkan pop-up pada browser untuk mencetak atau menyimpan lembar tagihan PDF.');
+      return;
+    }
+
+    const totalNominal = invList.reduce((sum, i) => sum + Number(i.nominal || 0), 0);
+    const totalDiscount = invList.reduce((sum, i) => sum + Number(i.discount_amount || 0), 0);
+    const totalPaid = invList.reduce((sum, i) => sum + Number(i.paid_amount || 0), 0);
+    const totalRemaining = Math.max(0, totalNominal - totalDiscount - totalPaid);
+
+    const sppInvoices = invList.filter(i => 
+      (i.post_name && i.post_name.includes('SPP')) || 
+      (i.post_code && i.post_code.includes('SPP')) || 
+      (i.month_period && (i.month_period.includes('2026-') || i.month_period.includes('2027-')))
+    );
+    const nonSppInvoices = invList.filter(i => !sppInvoices.includes(i));
+
+    const dateStamp = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const sppRowsHtml = sppInvoices.map((inv, idx) => {
+      const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
+      const statusBg = inv.status === 'Lunas' ? '#dcfce7; color: #166534;' : remaining > 0 ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;';
+      return `
+        <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+          <td style="font-weight: bold; padding: 6px; border: 1px solid #cbd5e1;">${inv.post_name} - ${inv.month_period || '-'}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; color: #64748b; font-size: 10px;">${inv.due_date || '10 Tiap Bulan'}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #059669;">${Number(inv.discount_amount || 0) > 0 ? '-Rp ' + Number(inv.discount_amount).toLocaleString('id-ID') : '-'}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #047857;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
+          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">
+            <span style="background: ${statusBg} padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9.5px; display: inline-block;">${inv.status}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const nonSppRowsHtml = nonSppInvoices.map((inv, idx) => {
+      const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
+      const statusBg = inv.status === 'Lunas' ? '#dcfce7; color: #166534;' : remaining > 0 ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;';
+      return `
+        <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+          <td style="font-weight: bold; padding: 6px; border: 1px solid #cbd5e1;">${inv.post_name}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; color: #64748b;">${inv.post_type || 'Biaya Khusus'}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #059669;">${Number(inv.discount_amount || 0) > 0 ? '-Rp ' + Number(inv.discount_amount).toLocaleString('id-ID') : '-'}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; color: #047857;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
+          <td style="text-align: right; padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
+          <td style="text-align: center; padding: 6px; border: 1px solid #cbd5e1;">
+            <span style="background: ${statusBg} padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9.5px; display: inline-block;">${inv.status}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Tagihan_${student.nis}_${(student.name || 'Siswa').replace(/\\s+/g, '_')}</title>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: A4 portrait; margin: 12mm 10mm; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            color: #0f172a; 
+            margin: 0; 
+            padding: 20px; 
+            font-size: 11px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .btn-container { text-align: right; margin-bottom: 16px; }
+          .btn-print { 
+            background: #059669; 
+            color: white; 
+            border: none; 
+            padding: 10px 22px; 
+            font-size: 13px; 
+            font-weight: bold; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+          }
+          .header { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+          .header h1 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 0.5px; }
+          .header p { margin: 2px 0 0 0; font-size: 10.5px; color: #475569; }
+          .badge { display: inline-block; margin-top: 6px; background: #0f172a; color: white; padding: 4px 14px; border-radius: 9999px; font-weight: bold; font-size: 10px; letter-spacing: 0.5px; }
+          .student-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 10.5px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; text-align: center; }
+          .summary-card { padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
+          .summary-card.red { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+          .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+          .section-title { font-size: 11.5px; font-weight: 800; text-transform: uppercase; margin: 12px 0 6px 0; color: #1e293b; border-left: 3px solid #059669; padding-left: 6px; }
+          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px; }
+          .table-container th { background: #f1f5f9; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 9.5px; }
+          .notice-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 8px; font-size: 10px; margin-top: 10px; color: #166534; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; margin-top: 20px; font-size: 10.5px; page-break-inside: avoid; }
+          .sig-line { margin-top: 50px; border-top: 1px solid #475569; display: inline-block; width: 200px; padding-top: 4px; font-weight: bold; }
+          @media print {
+            .btn-container { display: none !important; }
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="btn-container">
+          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang</button>
+        </div>
+
+        <div class="header">
+          <h1>SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN</h1>
+          <p>KBTK-IT &amp; SDIT Cendekia • Jl. Veteran No. 45 Lamongan, Jawa Timur</p>
+          <div class="badge">SURAT PEMBERITAHUAN RINCIAN TAGIHAN BIAYA PENDIDIKAN (TA 2026/2027)</div>
+        </div>
+
+        <div class="student-card">
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Nama Siswa:</strong><span style="font-weight: 800; font-size: 12px;">${student.name}</span></div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">NIS / NISN:</strong>${student.nis || '-'}</div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Kelas / Jenjang:</strong>${student.class_name || '-'} (${student.unit_name || 'Cendekia'})</div>
+          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Tanggal Cetak:</strong>${dateStamp}</div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold; color: #475569;">Total Kewajiban Biaya</div>
+            <div style="font-size: 15px; font-weight: 900; color: #0f172a;">Rp ${totalNominal.toLocaleString('id-ID')}</div>
+          </div>
+          <div class="summary-card green">
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold;">Total Terbayar (Lunas)</div>
+            <div style="font-size: 15px; font-weight: 900;">Rp ${totalPaid.toLocaleString('id-ID')}</div>
+          </div>
+          <div class="summary-card red">
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold;">Sisa Kewajiban / Piutang</div>
+            <div style="font-size: 15px; font-weight: 900;">Rp ${totalRemaining.toLocaleString('id-ID')}</div>
+          </div>
+        </div>
+
+        ${sppInvoices.length > 0 ? `
+          <div class="section-title">1. Rincian SPP Bulanan (Tahun Ajaran 2026/2027)</div>
+          <table class="table-container">
+            <thead>
+              <tr>
+                <th style="width: 30px;">No</th>
+                <th>Pos &amp; Bulan Tagihan</th>
+                <th>Jatuh Tempo</th>
+                <th>Nominal</th>
+                <th>Potongan</th>
+                <th>Sudah Bayar</th>
+                <th>Sisa Tagihan</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sppRowsHtml}
+            </tbody>
+          </table>
+        ` : ''}
+
+        ${nonSppInvoices.length > 0 ? `
+          <div class="section-title">2. Rincian Pos Tagihan Non-SPP (Uang Masuk, Gedung, Seragam, dll.)</div>
+          <table class="table-container">
+            <thead>
+              <tr>
+                <th style="width: 30px;">No</th>
+                <th>Pos Pembayaran</th>
+                <th>Kategori</th>
+                <th>Nominal</th>
+                <th>Potongan</th>
+                <th>Sudah Bayar</th>
+                <th>Sisa Tagihan</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${nonSppRowsHtml}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="notice-box">
+          <strong>ℹ️ Informasi &amp; Pembayaran:</strong><br/>
+          • Pembayaran Tunai dapat dilakukan di Loket Kasir SIT Cendekia Lamongan pada hari kerja (Senin - Sabtu, 07.30 - 15.00 WIB).<br/>
+          • Pembayaran Transfer Rekening Resmi Yayasan: <strong>Bank Syariah Indonesia (BSI) No. Rek. 7188-2991-01</strong> a.n. <em>SIT Cendekia Lamongan</em>.<br/>
+          • Bukti transfer dapat diunggah melalui Portal Orang Tua atau konfirmasi ke WhatsApp Keuangan (0812-3456-7890).
+        </div>
+
+        <div class="signatures">
+          <div>
+            <p style="margin: 0; color: #475569;">Diterima Oleh Wali Murid,</p>
+            <div class="sig-line">( Orang Tua / Wali Siswa )</div>
+          </div>
+          <div>
+            <p style="margin: 0; color: #475569;">Lamongan, ${dateStamp}<br/>Bagian Keuangan &amp; Kasir,</p>
+            <div class="sig-line">( Bendahara / Kasir Sekolah )</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
+  };
+
+  const filteredExportStudents = exportStudentsList.filter(s => 
+    (s.name || '').toLowerCase().includes(exportStudentSearch.toLowerCase()) ||
+    (s.nis || '').toLowerCase().includes(exportStudentSearch.toLowerCase())
+  );
+
   return (
     <div className="p-6 space-y-6">
       {/* Header & Actions */}
@@ -356,25 +703,37 @@ export default function InvoicesList() {
           <h1 className="text-2xl font-bold text-slate-800">Daftar Tagihan & Piutang Siswa</h1>
           <p className="text-xs text-slate-500">Kelola tagihan SPP bulanan, biaya masuk, seragam & atur tarif khusus/beasiswa per siswa</p>
         </div>
-        {isAdminOrSuperAdmin && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleOpenCustomSppWizard}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>⚡ Set Tarif Khusus Semua Pos / SPP Per-Bulan</span>
-            </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* EXPORT TAGIHAN SISWA PDF BUTTON (AVAILABLE FOR KASIR, ADMIN & SUPERADMIN) */}
+          <button
+            onClick={() => handleOpenExportPdfModal()}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            title="Export dan Cetak Lembar Rincian Tagihan Siswa (Semua Pos) ke format PDF"
+          >
+            <FileText className="w-4 h-4" />
+            <span>📄 Export Tagihan Siswa (PDF)</span>
+          </button>
 
-            <button
-              onClick={() => setShowGenerateModal(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Generate Tagihan Baru</span>
-            </button>
-          </div>
-        )}
+          {isAdminOrSuperAdmin && (
+            <>
+              <button
+                onClick={handleOpenCustomSppWizard}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>⚡ Set Tarif Khusus Semua Pos / SPP Per-Bulan</span>
+              </button>
+
+              <button
+                onClick={() => setShowGenerateModal(true)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Generate Tagihan Baru</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Filter & Search Bar */}
@@ -511,11 +870,21 @@ export default function InvoicesList() {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* Cetak Lembar Tagihan Siswa PDF Action */}
+                          <button
+                            onClick={() => handleDirectExportStudentPdf(inv)}
+                            title="Export & Cetak Lembar Rincian Tagihan Siswa Ini (PDF)"
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 transition-all text-xs font-bold inline-flex items-center gap-1 cursor-pointer active:scale-95"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Cetak PDF</span>
+                          </button>
+
                           {isAdminOrSuperAdmin && inv.status !== 'Lunas' && (
                             <button
                               onClick={() => handleOpenEditModal(inv)}
                               title="Custom Nominal / Potongan Khusus Siswa Ini"
-                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-300 transition-all text-xs font-bold inline-flex items-center gap-1"
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-300 transition-all text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
                             >
                               <Edit className="w-3.5 h-3.5 text-amber-600" />
                               <span>Custom Nominal</span>
@@ -526,7 +895,7 @@ export default function InvoicesList() {
                             <button
                               onClick={() => handleSendWAReminder(inv.id)}
                               title="Kirim Pengingat WhatsApp"
-                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 transition-all text-xs font-semibold inline-flex items-center gap-1"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 transition-all text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
                             >
                               <Send className="w-3.5 h-3.5" />
                               <span>WA</span>
@@ -951,6 +1320,289 @@ export default function InvoicesList() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: EXPORT & CETAK LEMBAR TAGIHAN SISWA (PDF) ================= */}
+      {showExportPdfModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-4xl lg:max-w-5xl w-full p-6 lg:p-8 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-bold shadow-md shadow-emerald-500/20">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg">Export &amp; Cetak Lembar Tagihan Siswa (PDF)</h3>
+                  <p className="text-xs text-slate-500">Cetak surat tagihan resmi per siswa dari seluruh pos pembayaran (SPP &amp; Non-SPP)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportPdfModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Stepper */}
+            <div className="grid grid-cols-2 gap-3 text-center text-xs font-bold">
+              <div className={`p-2.5 rounded-xl border transition-all ${exportStep === 1 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
+                1. Pilih Siswa Cendekia
+              </div>
+              <div className={`p-2.5 rounded-xl border transition-all ${exportStep === 2 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                2. Pilih Pos Tagihan &amp; Cetak PDF
+              </div>
+            </div>
+
+            {/* ================= STEP 1: PILIH SISWA ================= */}
+            {exportStep === 1 && (
+              <div className="space-y-4 py-1">
+                {/* Filter Unit & Class Tabs */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500">Jenjang:</span>
+                  <button
+                    onClick={() => {
+                      setExportUnit(null);
+                      setExportClass(null);
+                      api.get('/master/students').then(res => setExportStudentsList(res.data?.data || []));
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      !exportUnit ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Semua Jenjang
+                  </button>
+                  {units.map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => handleExportSelectUnit(u)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        exportUnit?.id === u.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+
+                {exportClassesList.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">Kelas:</span>
+                    <button
+                      onClick={() => {
+                        setExportClass(null);
+                        api.get(`/master/students?unit_id=${exportUnit?.id}`).then(res => setExportStudentsList(res.data?.data || []));
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !exportClass ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Semua Kelas
+                    </button>
+                    {exportClassesList.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => handleExportSelectClass(c)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          exportClass?.id === c.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Instant Search Bar */}
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={exportStudentSearch}
+                    onChange={(e) => setExportStudentSearch(e.target.value)}
+                    placeholder="Cari berdasarkan Nama Siswa atau NIS..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Student Cards List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[45vh] overflow-y-auto p-1">
+                  {filteredExportStudents.length === 0 ? (
+                    <div className="col-span-full p-8 text-center text-slate-400 text-xs">
+                      Tidak ada data siswa yang cocok
+                    </div>
+                  ) : (
+                    filteredExportStudents.map((st) => (
+                      <button
+                        key={st.id}
+                        onClick={() => handleExportSelectStudent(st)}
+                        className="p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left transition-all group space-y-1.5 cursor-pointer shadow-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] text-slate-400 font-bold">NIS: {st.nis}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">{st.unit_name || st.class_name || 'Cendekia'}</span>
+                        </div>
+                        <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-700 transition-colors leading-tight">{st.name}</h4>
+                        <p className="text-[11px] text-slate-500 font-medium">Kelas: {st.class_name || '-'}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ================= STEP 2: PILIH POS & CETAK PDF ================= */}
+            {exportStep === 2 && exportStudent && (
+              <div className="space-y-5 py-1">
+                {/* Student Selected Header */}
+                <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-base">{exportStudent.name}</h4>
+                      <p className="text-xs text-slate-600 font-medium">
+                        NIS: <span className="font-mono font-bold">{exportStudent.nis}</span> • Kelas: {exportStudent.class_name || '-'} ({exportStudent.unit_name || 'Cendekia'})
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setExportStep(1)}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+                  >
+                    Ganti Siswa
+                  </button>
+                </div>
+
+                {/* Selection Action & Totals */}
+                {exportLoading ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">Memuat daftar tagihan siswa...</div>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={toggleSelectAllExportInvoices}
+                          className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-950 cursor-pointer"
+                        >
+                          {exportSelectedInvoiceIds.length === exportInvoices.length ? (
+                            <CheckSquare className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                          <span>Pilih Semua Pos ({exportSelectedInvoiceIds.length}/{exportInvoices.length} Pos Terpilih)</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Total Kewajiban</span>
+                          <span className="font-extrabold text-slate-800">
+                            Rp {exportInvoices.filter(i => exportSelectedInvoiceIds.includes(i.id)).reduce((s, i) => s + Number(i.nominal || 0), 0).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Terbayar</span>
+                          <span className="font-extrabold text-emerald-700">
+                            Rp {exportInvoices.filter(i => exportSelectedInvoiceIds.includes(i.id)).reduce((s, i) => s + Number(i.paid_amount || 0), 0).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Sisa Piutang</span>
+                          <span className="font-extrabold text-rose-700">
+                            Rp {Math.max(0, exportInvoices.filter(i => exportSelectedInvoiceIds.includes(i.id)).reduce((s, i) => s + (Number(i.nominal || 0) - Number(i.discount_amount || 0) - Number(i.paid_amount || 0)), 0)).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Invoices List to toggle */}
+                    <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+                      <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                        {exportInvoices.map((inv) => {
+                          const isSelected = exportSelectedInvoiceIds.includes(inv.id);
+                          const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
+
+                          return (
+                            <div
+                              key={inv.id}
+                              onClick={() => toggleSelectExportInvoice(inv.id)}
+                              className={`p-3 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer text-xs ${
+                                isSelected ? 'bg-emerald-50/30' : 'opacity-60 bg-slate-50/40'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                                )}
+                                <div>
+                                  <span className="font-bold text-slate-800 block">
+                                    {inv.post_name} {inv.month_period ? `(${inv.month_period})` : ''}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">Jatuh Tempo: {inv.due_date || '10 Tiap Bulan'}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-4 text-right">
+                                <div>
+                                  <span className="font-extrabold text-slate-800 block">Rp {Number(inv.nominal || 0).toLocaleString('id-ID')}</span>
+                                  {Number(inv.discount_amount || 0) > 0 && (
+                                    <span className="text-[10px] text-emerald-600 font-bold block">Diskon: -Rp {Number(inv.discount_amount).toLocaleString('id-ID')}</span>
+                                  )}
+                                </div>
+
+                                <div className="min-w-[80px]">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                    inv.status === 'Lunas'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : inv.status === 'Sebagian'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}>
+                                    {inv.status}
+                                  </span>
+                                  {remaining > 0 && (
+                                    <span className="text-[10px] text-rose-700 font-bold block mt-0.5">Sisa: Rp {remaining.toLocaleString('id-ID')}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Footer Modal Actions */}
+                <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowExportPdfModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintOrDownloadPdf}
+                    disabled={exportSelectedInvoiceIds.length === 0}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>🖨️ Cetak / Simpan PDF Lembar Tagihan Sekarang</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
