@@ -334,7 +334,7 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
       if (s.name) studentMap[String(s.name).trim().toLowerCase()] = s;
     }
 
-    const posts = await query(`SELECT id, code, name, unit_id, default_nominal, type FROM payment_posts`);
+    const posts = await query(`SELECT id, code, name, unit_id, default_amount, type FROM payment_posts`);
 
     const monthMap = {
       'juli': '2026-07', 'jul': '2026-07', '07': '2026-07',
@@ -358,7 +358,7 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
 
     // Helper to process a single invoice item for a student
     const processSingleInvoice = async (student, post, normalizedPeriod, rawVal, rawDiscount = 0, rawPaid = null) => {
-      let nominal = post.default_nominal || 0;
+      let nominal = parseFloat(post.default_amount) || (student.unit_id === 1 ? 350000 : 450000);
       let discount = parseFloat(rawDiscount) >= 0 ? parseFloat(rawDiscount) : 0;
       let paid = 0;
       let isLunas = false;
@@ -369,7 +369,7 @@ router.post('/import-excel', verifyToken, authorizeRoles('superadmin', 'admin', 
         // Jika diisi 0, 'lunas', 'l', 'sudah', atau 'ya' -> Otomatis dianggap LUNAS
         if (valStr === '0' || valStr === 'lunas' || valStr === 'l' || valStr === 'sudah' || valStr === 'ya') {
           isLunas = true;
-          nominal = post.default_nominal || (student.unit_id === 1 ? 350000 : 450000);
+          nominal = parseFloat(post.default_amount) || (student.unit_id === 1 ? 350000 : 450000);
           paid = Math.max(0, nominal - discount);
         } else {
           const numVal = parseFloat(valStr.replace(/[^\d.-]/g, ''));
