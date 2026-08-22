@@ -297,7 +297,7 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'be
         [newPaidAmount, newStatus, inv.id]
       );
 
-      // Update account balance
+      // Update account balance (Pos Pendapatan)
       if (inv.account_id) {
         await run(`UPDATE accounts SET balance = balance + ? WHERE id = ?`, [payForThisInv, inv.account_id]);
       }
@@ -305,8 +305,16 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin', 'kasir', 'be
       paidMonthList.push(inv.month_period || inv.post_name || 'Biaya Pendidikan');
     }
 
-    // Default cash account increment
-    await run(`UPDATE accounts SET balance = balance + ? WHERE code = '101.01'`, [totalPaidInTxn || numericAmount]);
+    // Update Kas / Bank account based on payment method
+    let targetCashAccountCode = '101.01'; // Default Kas Utama (Tunai)
+    const lowerMethod = (payment_method || '').toLowerCase();
+    if (lowerMethod.includes('bsi')) {
+      targetCashAccountCode = '101.03'; // Bank BSI
+    } else if (lowerMethod.includes('bank') || lowerMethod.includes('transfer') || lowerMethod.includes('bca') || lowerMethod.includes('qris') || lowerMethod.includes('va')) {
+      targetCashAccountCode = '101.02'; // Bank BCA
+    }
+
+    await run(`UPDATE accounts SET balance = balance + ? WHERE code = ?`, [totalPaidInTxn || numericAmount, targetCashAccountCode]);
 
     // Safe send WhatsApp & audit log
     try {
