@@ -190,52 +190,55 @@ export default function CashierPOS({ initialTab }) {
         <title>Rekap_Transaksi_Kasir_Cendekia_${historyUnit || 'Semua'}_${historyPeriod}_${new Date().toISOString().slice(0, 10)}</title>
         <meta charset="utf-8" />
         <style>
-          @page { size: A4 portrait; margin: 12mm 10mm; }
-          body { 
+          @page { size: A4 portrait; margin: 6mm 8mm; }
+          * { box-sizing: border-box; }
+          html, body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
             color: #0f172a; 
             margin: 0; 
-            padding: 24px; 
-            font-size: 11.5px;
+            padding: 10px 14px; 
+            font-size: 10px;
+            line-height: 1.25;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .btn-container { text-align: right; margin-bottom: 16px; }
+          .btn-container { text-align: right; margin-bottom: 8px; }
           .btn-print { 
             background: #059669; 
             color: white; 
             border: none; 
-            padding: 10px 22px; 
-            font-size: 13px; 
+            padding: 8px 18px; 
+            font-size: 12px; 
             font-weight: bold; 
-            border-radius: 10px; 
+            border-radius: 8px; 
             cursor: pointer; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
           }
-          .header { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
-          .header h1 { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.5px; color: #0f172a; }
-          .header p { margin: 3px 0 0 0; font-size: 11px; color: #475569; }
-          .badge { display: inline-block; margin-top: 8px; background: #0f172a; color: white; padding: 4px 14px; border-radius: 9999px; font-weight: bold; font-size: 10.5px; letter-spacing: 0.5px; }
-          .meta-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 14px; font-size: 11px; }
-          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
-          .summary-card { padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
+          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 4px; margin-bottom: 8px; }
+          .header h1 { margin: 0; font-size: 14.5px; font-weight: 900; letter-spacing: 0.3px; color: #0f172a; }
+          .header p { margin: 1px 0 0 0; font-size: 9.5px; color: #475569; }
+          .badge { display: inline-block; margin-top: 3px; background: #0f172a; color: white; padding: 2px 12px; border-radius: 9999px; font-weight: bold; font-size: 9px; letter-spacing: 0.3px; }
+          .meta-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; font-size: 9.5px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; text-align: center; }
+          .summary-card { padding: 5px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; }
           .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
-          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-          .table-container th { background: #f1f5f9; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 10px; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; margin-top: 24px; font-size: 11px; page-break-inside: avoid; }
-          .sig-line { margin-top: 55px; border-top: 1px solid #475569; display: inline-block; width: 220px; padding-top: 4px; font-weight: bold; }
+          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9.5px; }
+          .table-container th { background: #f1f5f9; padding: 4px 6px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 9px; }
+          .table-container td { padding: 4px 6px; border: 1px solid #cbd5e1; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; text-align: center; margin-top: 10px; font-size: 9.5px; page-break-inside: avoid; }
+          .sig-line { margin-top: 38px; border-top: 1px solid #475569; display: inline-block; width: 160px; padding-top: 2px; font-weight: bold; font-size: 9px; }
           @media print {
             .btn-container { display: none !important; }
-            body { padding: 0; }
+            body { padding: 0; font-size: 9px; }
           }
         </style>
       </head>
       <body>
         <div class="btn-container">
-          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang</button>
+          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang (1 Halaman)</button>
         </div>
 
         <div class="header">

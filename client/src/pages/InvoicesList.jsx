@@ -546,139 +546,158 @@ export default function InvoicesList() {
         <title>Tagihan_${student.nis}_${(student.name || 'Siswa').replace(/\\s+/g, '_')}</title>
         <meta charset="utf-8" />
         <style>
-          @page { size: A4 portrait; margin: 12mm 10mm; }
-          body { 
+          @page { size: A4 portrait; margin: 6mm 7mm; }
+          * { box-sizing: border-box; }
+          html, body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
             color: #0f172a; 
             margin: 0; 
-            padding: 20px; 
-            font-size: 11px;
+            padding: 0; 
+            font-size: 10px;
+            line-height: 1.25;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .btn-container { text-align: right; margin-bottom: 16px; }
+          .page-container {
+            padding: 10px 14px;
+            max-width: 100%;
+          }
+          .btn-container { text-align: right; margin-bottom: 8px; }
           .btn-print { 
             background: #059669; 
             color: white; 
             border: none; 
-            padding: 10px 22px; 
-            font-size: 13px; 
+            padding: 8px 18px; 
+            font-size: 12px; 
             font-weight: bold; 
-            border-radius: 10px; 
+            border-radius: 8px; 
             cursor: pointer; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
-          .header { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
-          .header h1 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 0.5px; }
-          .header p { margin: 2px 0 0 0; font-size: 10.5px; color: #475569; }
-          .badge { display: inline-block; margin-top: 6px; background: #0f172a; color: white; padding: 4px 14px; border-radius: 9999px; font-weight: bold; font-size: 10px; letter-spacing: 0.5px; }
-          .student-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 10.5px; }
-          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; text-align: center; }
-          .summary-card { padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
+          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 4px; margin-bottom: 6px; }
+          .header h1 { margin: 0; font-size: 14.5px; font-weight: 900; letter-spacing: 0.3px; color: #0f172a; }
+          .header p { margin: 1px 0 0 0; font-size: 9.5px; color: #475569; }
+          .badge { display: inline-block; margin-top: 3px; background: #0f172a; color: white; padding: 2px 10px; border-radius: 9999px; font-weight: bold; font-size: 9px; letter-spacing: 0.3px; }
+          .student-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 5px 8px; border-radius: 6px; margin-bottom: 6px; font-size: 9.5px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; text-align: center; }
+          .summary-card { padding: 4px 6px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; }
           .summary-card.red { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
           .summary-card.green { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
-          .section-title { font-size: 11.5px; font-weight: 800; text-transform: uppercase; margin: 12px 0 6px 0; color: #1e293b; border-left: 3px solid #059669; padding-left: 6px; }
-          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px; }
-          .table-container th { background: #f1f5f9; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 9.5px; }
-          .notice-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 8px; font-size: 10px; margin-top: 10px; color: #166534; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; margin-top: 20px; font-size: 10.5px; page-break-inside: avoid; }
-          .sig-line { margin-top: 50px; border-top: 1px solid #475569; display: inline-block; width: 200px; padding-top: 4px; font-weight: bold; }
+          
+          .main-grid { display: flex; gap: 8px; align-items: flex-start; }
+          .col-left { flex: 0 0 57%; width: 57%; }
+          .col-right { flex: 0 0 43%; width: 43%; display: flex; flex-direction: column; gap: 6px; }
+
+          .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; color: #1e293b; border-left: 3px solid #059669; padding-left: 5px; }
+          .table-container { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9px; }
+          .table-container th { background: #f1f5f9; padding: 3.5px 4px; border: 1px solid #cbd5e1; font-weight: bold; text-transform: uppercase; font-size: 8.5px; }
+          .table-container td { padding: 3px 4px; border: 1px solid #cbd5e1; }
+          
+          .notice-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 6px 8px; border-radius: 6px; font-size: 8.5px; color: #166534; line-height: 1.25; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center; margin-top: 4px; font-size: 9px; }
+          .sig-line { margin-top: 35px; border-top: 1px solid #475569; display: inline-block; width: 120px; padding-top: 2px; font-weight: bold; font-size: 8.5px; }
           @media print {
             .btn-container { display: none !important; }
-            body { padding: 0; }
+            .page-container { padding: 0; }
+            body { font-size: 9px; }
           }
         </style>
       </head>
       <body>
-        <div class="btn-container">
-          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang</button>
-        </div>
-
-        <div class="header">
-          <h1>SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN</h1>
-          <p>KBTK-IT &amp; SDIT Cendekia • Jl. Veteran No. 45 Lamongan, Jawa Timur</p>
-          <div class="badge">SURAT PEMBERITAHUAN RINCIAN TAGIHAN BIAYA PENDIDIKAN (TA 2026/2027)</div>
-        </div>
-
-        <div class="student-card">
-          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Nama Siswa:</strong><span style="font-weight: 800; font-size: 12px;">${student.name}</span></div>
-          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">NIS / NISN:</strong>${student.nis || '-'}</div>
-          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Kelas / Jenjang:</strong>${student.class_name || '-'} (${student.unit_name || 'Cendekia'})</div>
-          <div><strong style="color: #64748b; text-transform: uppercase; font-size: 9px; display: block;">Tanggal Cetak:</strong>${dateStamp}</div>
-        </div>
-
-        <div class="summary-grid">
-          <div class="summary-card">
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold; color: #475569;">Total Kewajiban Biaya</div>
-            <div style="font-size: 15px; font-weight: 900; color: #0f172a;">Rp ${totalNominal.toLocaleString('id-ID')}</div>
+        <div class="page-container">
+          <div class="btn-container">
+            <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang (1 Halaman)</button>
           </div>
-          <div class="summary-card green">
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold;">Total Terbayar (Lunas)</div>
-            <div style="font-size: 15px; font-weight: 900;">Rp ${totalPaid.toLocaleString('id-ID')}</div>
+
+          <div class="header">
+            <h1>SEKOLAH ISLAM TERPADU CENDEKIA LAMONGAN</h1>
+            <p>KBTK-IT &amp; SDIT Cendekia • Jl. Veteran No. 45 Lamongan, Jawa Timur • Telp: (0322) 321890</p>
+            <div class="badge">SURAT PEMBERITAHUAN RINCIAN TAGIHAN BIAYA PENDIDIKAN (TA 2026/2027)</div>
           </div>
-          <div class="summary-card red">
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: bold;">Sisa Kewajiban / Piutang</div>
-            <div style="font-size: 15px; font-weight: 900;">Rp ${totalRemaining.toLocaleString('id-ID')}</div>
+
+          <div class="student-card">
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Nama Siswa:</strong><span style="font-weight: 800; font-size: 10.5px;">${student.name}</span></div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">NIS / NISN:</strong>${student.nis || '-'}</div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Kelas / Jenjang:</strong>${student.class_name || '-'} (${student.unit_name || 'Cendekia'})</div>
+            <div><strong style="color: #64748b; text-transform: uppercase; font-size: 8px; display: block;">Waktu Cetak:</strong>${dateStamp}</div>
           </div>
-        </div>
 
-        ${sppInvoices.length > 0 ? `
-          <div class="section-title">1. Rincian SPP Bulanan (Tahun Ajaran 2026/2027)</div>
-          <table class="table-container">
-            <thead>
-              <tr>
-                <th style="width: 30px;">No</th>
-                <th>Pos &amp; Bulan Tagihan</th>
-                <th>Jatuh Tempo</th>
-                <th>Nominal</th>
-                <th>Potongan</th>
-                <th>Sudah Bayar</th>
-                <th>Sisa Tagihan</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sppRowsHtml}
-            </tbody>
-          </table>
-        ` : ''}
-
-        ${nonSppInvoices.length > 0 ? `
-          <div class="section-title">2. Rincian Pos Tagihan Non-SPP (Uang Masuk, Gedung, Seragam, dll.)</div>
-          <table class="table-container">
-            <thead>
-              <tr>
-                <th style="width: 30px;">No</th>
-                <th>Pos Pembayaran</th>
-                <th>Kategori</th>
-                <th>Nominal</th>
-                <th>Potongan</th>
-                <th>Sudah Bayar</th>
-                <th>Sisa Tagihan</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${nonSppRowsHtml}
-            </tbody>
-          </table>
-        ` : ''}
-
-        <div class="notice-box">
-          <strong>ℹ️ Informasi &amp; Pembayaran:</strong><br/>
-          • Pembayaran Tunai dapat dilakukan di Loket Kasir SIT Cendekia Lamongan pada hari kerja (Senin - Sabtu, 07.30 - 15.00 WIB).<br/>
-          • Pembayaran Transfer Rekening Resmi Yayasan: <strong>Bank Syariah Indonesia (BSI) No. Rek. 7188-2991-01</strong> a.n. <em>SIT Cendekia Lamongan</em>.<br/>
-          • Bukti transfer dapat diunggah melalui Portal Orang Tua atau konfirmasi ke WhatsApp Keuangan (0812-3456-7890).
-        </div>
-
-        <div class="signatures">
-          <div>
-            <p style="margin: 0; color: #475569;">Diterima Oleh Wali Murid,</p>
-            <div class="sig-line">( Orang Tua / Wali Siswa )</div>
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold; color: #475569;">Total Kewajiban Biaya</div>
+              <div style="font-size: 13px; font-weight: 900; color: #0f172a;">Rp ${totalNominal.toLocaleString('id-ID')}</div>
+            </div>
+            <div class="summary-card green">
+              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold;">Total Terbayar (Lunas)</div>
+              <div style="font-size: 13px; font-weight: 900;">Rp ${totalPaid.toLocaleString('id-ID')}</div>
+            </div>
+            <div class="summary-card red">
+              <div style="font-size: 8px; text-transform: uppercase; font-weight: bold;">Sisa Kewajiban / Piutang</div>
+              <div style="font-size: 13px; font-weight: 900;">Rp ${totalRemaining.toLocaleString('id-ID')}</div>
+            </div>
           </div>
-          <div>
-            <p style="margin: 0; color: #475569;">Lamongan, ${dateStamp}<br/>Bagian Keuangan &amp; Kasir,</p>
-            <div class="sig-line">( Bendahara / Kasir Sekolah )</div>
+
+          <div class="main-grid">
+            <!-- Left Column: 12 SPP Months -->
+            <div class="col-left">
+              <div class="section-title">1. Rincian SPP Bulanan (TA 2026/2027)</div>
+              <table class="table-container">
+                <thead>
+                  <tr>
+                    <th style="width: 22px;">No</th>
+                    <th>Bulan Tagihan</th>
+                    <th>Tagihan</th>
+                    <th>Diskon</th>
+                    <th>Bayar</th>
+                    <th>Sisa</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sppRowsHtml.length > 0 ? sppRowsHtml : '<tr><td colspan="7" style="text-align:center; padding:10px; color:#94a3b8;">Tidak ada pos SPP</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Right Column: Non-SPP Posts + Payment Notice + Signatures -->
+            <div class="col-right">
+              <div>
+                <div class="section-title">2. Pos Tagihan Non-SPP</div>
+                <table class="table-container">
+                  <thead>
+                    <tr>
+                      <th style="width: 20px;">No</th>
+                      <th>Pos Pembayaran</th>
+                      <th>Tagihan</th>
+                      <th>Bayar</th>
+                      <th>Sisa</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${nonSppRowsHtml.length > 0 ? nonSppRowsHtml : '<tr><td colspan="6" style="text-align:center; padding:8px; color:#94a3b8;">Tidak ada tagihan non-SPP</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="notice-box">
+                <strong>ℹ️ Rekening &amp; Loket Pembayaran:</strong><br/>
+                • <strong>BSI (Bank Syariah Indonesia) No. 7188-2991-01</strong> a.n. <em>SIT Cendekia Lamongan</em>.<br/>
+                • Loket Kasir Sekolah: Buka Senin - Sabtu (07.30 - 15.00 WIB).<br/>
+                • Konfirmasi WA Keuangan: 0812-3456-7890.
+              </div>
+
+              <div class="signatures">
+                <div>
+                  <p style="margin: 0; color: #475569;">Wali Murid,</p>
+                  <div class="sig-line">( Orang Tua / Wali )</div>
+                </div>
+                <div>
+                  <p style="margin: 0; color: #475569;">Lamongan, ${dateStamp}<br/>Bagian Kasir / Keuangan,</p>
+                  <div class="sig-line">( Petugas Loket Kasir )</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </body>
