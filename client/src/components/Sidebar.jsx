@@ -14,6 +14,7 @@ import {
   UserCheck,
   School,
   Database,
+  Calendar,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +44,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
     {
       title: 'MASTER DATA',
       items: [
+        { name: 'Tahun Ajaran & Periode', path: '/academic-years', icon: Calendar, roles: ['superadmin', 'admin'] },
         { name: 'Data Siswa & Mutasi', path: '/students', icon: GraduationCap, roles: ['superadmin', 'admin', 'kasir'] },
         { name: 'Akun Keuangan (GL)', path: '/accounts', icon: Building2, roles: ['superadmin', 'admin'] },
         { name: 'Master Pos Pembayaran', path: '/pos-settings', icon: BookOpenCheck, roles: ['superadmin', 'admin'] }

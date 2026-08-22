@@ -17,12 +17,55 @@ router.get('/academic-years', verifyToken, async (req, res) => {
 router.post('/academic-years', verifyToken, authorizeRoles('superadmin', 'admin'), async (req, res) => {
   try {
     const { name, start_date, end_date } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Nama tahun ajaran wajib diisi (misal: 2026/2027)' });
+    }
+
+    const existing = await get(`SELECT id FROM academic_years WHERE name = ?`, [name.trim()]);
+    if (existing) {
+      return res.status(400).json({ success: false, error: `Tahun ajaran "${name}" sudah ada di database.` });
+    }
+
     const result = await run(
       `INSERT INTO academic_years (name, is_active, start_date, end_date) VALUES (?, 0, ?, ?)`,
-      [name, start_date, end_date]
+      [name.trim(), start_date || null, end_date || null]
     );
+
     await logAudit(req.user.id, req.user.name, req.user.role, 'CREATE_ACADEMIC_YEAR', 'MASTER', `Menambah tahun ajaran ${name}`, req);
-    res.json({ success: true, id: result.id });
+    res.json({ success: true, message: 'Tahun ajaran baru berhasil ditambahkan!', id: result.id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.put('/academic-years/:id', verifyToken, authorizeRoles('superadmin', 'admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, start_date, end_date } = req.body;
+
+    const current = await get(`SELECT * FROM academic_years WHERE id = ?`, [id]);
+    if (!current) {
+      return res.status(404).json({ success: false, error: 'Tahun ajaran tidak ditemukan' });
+    }
+
+    if (name && name.trim() !== current.name) {
+      const existing = await get(`SELECT id FROM academic_years WHERE name = ? AND id != ?`, [name.trim(), id]);
+      if (existing) {
+        return res.status(400).json({ success: false, error: `Nama tahun ajaran "${name}" sudah digunakan.` });
+      }
+    }
+
+    const updatedName = name ? name.trim() : current.name;
+    const updatedStart = start_date || current.start_date;
+    const updatedEnd = end_date || current.end_date;
+
+    await run(
+      `UPDATE academic_years SET name = ?, start_date = ?, end_date = ? WHERE id = ?`,
+      [updatedName, updatedStart, updatedEnd, id]
+    );
+
+    await logAudit(req.user.id, req.user.name, req.user.role, 'UPDATE_ACADEMIC_YEAR', 'MASTER', `Memperbarui data tahun ajaran ${updatedName}`, req);
+    res.json({ success: true, message: 'Tahun ajaran berhasil diperbarui!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -31,11 +74,43 @@ router.post('/academic-years', verifyToken, authorizeRoles('superadmin', 'admin'
 router.put('/academic-years/:id/activate', verifyToken, authorizeRoles('superadmin', 'admin'), async (req, res) => {
   try {
     const { id } = req.params;
+    const target = await get(`SELECT * FROM academic_years WHERE id = ?`, [id]);
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'Tahun ajaran tidak ditemukan' });
+    }
+
     // BR-001: Hanya satu Tahun Ajaran yang aktif
     await run(`UPDATE academic_years SET is_active = 0`);
     await run(`UPDATE academic_years SET is_active = 1 WHERE id = ?`, [id]);
-    await logAudit(req.user.id, req.user.name, req.user.role, 'ACTIVATE_ACADEMIC_YEAR', 'MASTER', `Mengaktifkan tahun ajaran ID ${id}`, req);
-    res.json({ success: true, message: 'Tahun ajaran berhasil diaktifkan' });
+
+    await logAudit(req.user.id, req.user.name, req.user.role, 'ACTIVATE_ACADEMIC_YEAR', 'MASTER', `Mengaktifkan tahun ajaran: ${target.name}`, req);
+    res.json({ success: true, message: `Tahun ajaran "${target.name}" sekarang aktif sebagai acuan sistem!` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.delete('/academic-years/:id', verifyToken, authorizeRoles('superadmin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const current = await get(`SELECT * FROM academic_years WHERE id = ?`, [id]);
+    if (!current) {
+      return res.status(404).json({ success: false, error: 'Tahun ajaran tidak ditemukan' });
+    }
+
+    if (Number(current.is_active) === 1) {
+      return res.status(400).json({ success: false, error: 'Tahun ajaran yang sedang AKTIF tidak boleh dihapus. Aktifkan tahun ajaran lain terlebih dahulu.' });
+    }
+
+    // Check if invoices exist
+    const invCheck = await get(`SELECT COUNT(*) as count FROM invoices WHERE academic_year_id = ?`, [id]);
+    if (invCheck && Number(invCheck.count) > 0) {
+      return res.status(400).json({ success: false, error: `Tahun ajaran "${current.name}" tidak dapat dihapus karena memiliki ${invCheck.count} data transaksi tagihan siswa.` });
+    }
+
+    await run(`DELETE FROM academic_years WHERE id = ?`, [id]);
+    await logAudit(req.user.id, req.user.name, req.user.role, 'DELETE_ACADEMIC_YEAR', 'MASTER', `Menghapus tahun ajaran: ${current.name}`, req);
+    res.json({ success: true, message: 'Tahun ajaran berhasil dihapus!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

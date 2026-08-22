@@ -12,6 +12,7 @@ import InvoicesList from './pages/InvoicesList';
 import StudentsList from './pages/StudentsList';
 import PosPayment from './pages/PosPayment';
 import AccountsChart from './pages/AccountsChart';
+import AcademicYears from './pages/AcademicYears';
 import Expenses from './pages/Expenses';
 import ParentPortal from './pages/ParentPortal';
 import KwitansiView from './pages/KwitansiView';
@@ -49,6 +50,7 @@ const ProtectedLayout = () => {
             <Route path="/history-transaksi" element={<CashierPOS initialTab="history" />} />
             <Route path="/kasir-history" element={<CashierPOS initialTab="history" />} />
             <Route path="/invoices" element={<InvoicesList />} />
+            <Route path="/academic-years" element={<AcademicYears />} />
             <Route path="/students" element={<StudentsList />} />
             <Route path="/pos-settings" element={<PosPayment />} />
             <Route path="/accounts" element={<AccountsChart />} />
