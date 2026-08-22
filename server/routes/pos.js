@@ -34,14 +34,32 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin'), async (req,
   try {
     const { unit_id, code, name, type, default_amount, sort_order, account_id } = req.body;
 
+    if (!code || !name || !type) {
+      return res.status(400).json({ success: false, error: 'Kode pos, nama pos, dan tipe pembayaran wajib diisi' });
+    }
+
+    const existing = await get(`SELECT id FROM payment_posts WHERE code = ?`, [code.trim()]);
+    if (existing) {
+      return res.status(400).json({ success: false, error: `Kode pos "${code}" sudah digunakan. Silakan gunakan kode lain.` });
+    }
+
     const result = await run(
       `INSERT INTO payment_posts (unit_id, code, name, type, default_amount, is_active, sort_order, account_id)
        VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-      [unit_id || null, code, name, type, default_amount || 0, sort_order || 1, account_id || null]
+      [unit_id ? parseInt(unit_id) : null, code.trim(), name.trim(), type, parseFloat(default_amount) || 0, sort_order || 1, account_id ? parseInt(account_id) : null]
     );
 
-    await logAudit(req.user.id, req.user.name, req.user.role, 'CREATE_POS', 'POS', `Menambah Pos Pembayaran: ${name}`, req);
-    res.json({ success: true, id: result.id });
+    await logAudit(
+      req.user.id,
+      req.user.name,
+      req.user.role,
+      'CREATE_POS',
+      'POS',
+      `Menambah Pos Pembayaran: ${code.trim()} - ${name.trim()} (Nominal: Rp ${parseFloat(default_amount || 0).toLocaleString('id-ID')})`,
+      req
+    );
+
+    res.json({ success: true, message: 'Pos Pembayaran berhasil ditambahkan!', id: result.id });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -51,15 +69,85 @@ router.post('/', verifyToken, authorizeRoles('superadmin', 'admin'), async (req,
 router.put('/:id', verifyToken, authorizeRoles('superadmin', 'admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, default_amount, is_active, sort_order, account_id } = req.body;
+    const { unit_id, code, name, type, default_amount, is_active, sort_order, account_id } = req.body;
+
+    const current = await get(`SELECT * FROM payment_posts WHERE id = ?`, [id]);
+    if (!current) {
+      return res.status(404).json({ success: false, error: 'Pos pembayaran tidak ditemukan' });
+    }
+
+    if (code && code.trim() !== current.code) {
+      const existing = await get(`SELECT id FROM payment_posts WHERE code = ? AND id != ?`, [code.trim(), id]);
+      if (existing) {
+        return res.status(400).json({ success: false, error: `Kode pos "${code}" sudah digunakan pos pembayaran lain.` });
+      }
+    }
+
+    const updatedCode = code ? code.trim() : current.code;
+    const updatedName = name ? name.trim() : current.name;
+    const updatedType = type || current.type;
+    const updatedUnitId = unit_id !== undefined ? (unit_id ? parseInt(unit_id) : null) : current.unit_id;
+    const updatedAmount = default_amount !== undefined ? parseFloat(default_amount) : parseFloat(current.default_amount);
+    const updatedAccountId = account_id !== undefined ? (account_id ? parseInt(account_id) : null) : current.account_id;
+    const updatedActive = is_active !== undefined ? (is_active ? 1 : 0) : current.is_active;
+    const updatedSort = sort_order !== undefined ? parseInt(sort_order) : current.sort_order;
 
     await run(
-      `UPDATE payment_posts SET name = ?, default_amount = ?, is_active = ?, sort_order = ?, account_id = ? WHERE id = ?`,
-      [name, default_amount, is_active, sort_order, account_id, id]
+      `UPDATE payment_posts 
+       SET code = ?, name = ?, type = ?, unit_id = ?, default_amount = ?, is_active = ?, sort_order = ?, account_id = ? 
+       WHERE id = ?`,
+      [updatedCode, updatedName, updatedType, updatedUnitId, updatedAmount, updatedActive, updatedSort, updatedAccountId, id]
     );
 
-    await logAudit(req.user.id, req.user.name, req.user.role, 'UPDATE_POS', 'POS', `Mengubah Pos Pembayaran ID ${id}`, req);
-    res.json({ success: true, message: 'Pos Pembayaran berhasil diperbarui' });
+    await logAudit(
+      req.user.id,
+      req.user.name,
+      req.user.role,
+      'UPDATE_POS',
+      'POS',
+      `Memperbarui Pos Pembayaran: ${updatedCode} - ${updatedName} (Nominal: Rp ${updatedAmount.toLocaleString('id-ID')})`,
+      req
+    );
+
+    res.json({ success: true, message: 'Pos Pembayaran berhasil diperbarui!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete payment post
+router.delete('/:id', verifyToken, authorizeRoles('superadmin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const current = await get(`SELECT * FROM payment_posts WHERE id = ?`, [id]);
+    if (!current) {
+      return res.status(404).json({ success: false, error: 'Pos pembayaran tidak ditemukan' });
+    }
+
+    // Check if invoices are linked to this post
+    const invoiceCheck = await get(`SELECT COUNT(*) as count FROM invoices WHERE post_id = ?`, [id]);
+    if (invoiceCheck && Number(invoiceCheck.count) > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Pos pembayaran "${current.name}" tidak dapat dihapus karena sudah memiliki ${invoiceCheck.count} data tagihan/transaksi siswa. Anda dapat mengubah statusnya menjadi non-aktif.`
+      });
+    }
+
+    // Delete associated nominal rules
+    await run(`DELETE FROM nominal_rules WHERE post_id = ?`, [id]);
+    await run(`DELETE FROM payment_posts WHERE id = ?`, [id]);
+
+    await logAudit(
+      req.user.id,
+      req.user.name,
+      req.user.role,
+      'DELETE_POS',
+      'POS',
+      `Menghapus Pos Pembayaran: ${current.code} - ${current.name}`,
+      req
+    );
+
+    res.json({ success: true, message: 'Pos Pembayaran berhasil dihapus!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -87,10 +175,10 @@ router.post('/:id/rules', verifyToken, authorizeRoles('superadmin', 'admin'), as
 
     const result = await run(
       `INSERT INTO nominal_rules (post_id, target_type, target_id, amount) VALUES (?, ?, ?, ?)`,
-      [id, target_type, target_id || null, amount]
+      [id, target_type, target_id || null, parseFloat(amount) || 0]
     );
 
-    await logAudit(req.user.id, req.user.name, req.user.role, 'SET_NOMINAL_RULE', 'POS', `Mengatur nominal khusus (${target_type}) untuk Pos ID ${id}: Rp ${amount}`, req);
+    await logAudit(req.user.id, req.user.name, req.user.role, 'SET_NOMINAL_RULE', 'POS', `Mengatur nominal khusus (${target_type}) untuk Pos ID ${id}: Rp ${parseFloat(amount || 0).toLocaleString('id-ID')}`, req);
     res.json({ success: true, id: result.id });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
