@@ -93,6 +93,60 @@ router.get('/metrics', verifyToken, async (req, res) => {
     const sppPaid = await get(`SELECT COUNT(*) as count FROM invoices WHERE status = 'Lunas'`);
     const sppUnpaid = await get(`SELECT COUNT(*) as count FROM invoices WHERE status IN ('Belum Dibayar', 'Sebagian')`);
 
+    // 12. Daily Breakdown per Unit (KBTK & SDIT) and per Payment Post
+    const unitsRaw = await query(`SELECT id, name, code FROM units ORDER BY id ASC`);
+    const unitsList = unitsRaw && unitsRaw.length > 0 ? unitsRaw : [
+      { id: 1, name: 'KBTK-IT Cendekia', code: 'KBTK' },
+      { id: 2, name: 'SDIT Cendekia', code: 'SDIT' }
+    ];
+
+    const dailyPostsRaw = await query(`
+      SELECT 
+        COALESCE(s.unit_id, pp.unit_id, 0) as unit_id,
+        COALESCE(u.name, 'Umum / Lainnya') as unit_name,
+        COALESCE(u.code, 'ALL') as unit_code,
+        COALESCE(pp.id, 0) as post_id,
+        COALESCE(pp.name, 'Biaya Pendidikan') as post_name,
+        SUM(p.amount) as total_amount,
+        COUNT(p.id) as transaction_count,
+        SUM(CASE WHEN p.payment_method IN ('Cash', 'Tunai') THEN p.amount ELSE 0 END) as total_cash,
+        SUM(CASE WHEN p.payment_method NOT IN ('Cash', 'Tunai') THEN p.amount ELSE 0 END) as total_non_cash
+      FROM payments p
+      LEFT JOIN students s ON p.student_id = s.id
+      LEFT JOIN units u ON s.unit_id = u.id
+      LEFT JOIN invoices i ON p.invoice_id = i.id
+      LEFT JOIN payment_posts pp ON i.post_id = pp.id
+      WHERE p.status = 'Paid' AND DATE(p.payment_date) = DATE('now', 'localtime')
+      GROUP BY COALESCE(s.unit_id, pp.unit_id, 0), u.name, u.code, pp.id, pp.name
+      ORDER BY total_amount DESC
+    `);
+
+    const dailyUnitRecap = unitsList.map(unit => {
+      const postsForUnit = (dailyPostsRaw || []).filter(p => Number(p.unit_id) === Number(unit.id) || p.unit_code === unit.code);
+      const totalAmount = postsForUnit.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+      const totalCash = postsForUnit.reduce((sum, p) => sum + Number(p.total_cash || 0), 0);
+      const totalNonCash = postsForUnit.reduce((sum, p) => sum + Number(p.total_non_cash || 0), 0);
+      const transactionCount = postsForUnit.reduce((sum, p) => sum + Number(p.transaction_count || 0), 0);
+
+      return {
+        unitId: unit.id,
+        unitName: unit.name,
+        unitCode: unit.code,
+        totalAmount,
+        totalCash,
+        totalNonCash,
+        transactionCount,
+        posts: postsForUnit.map(p => ({
+          postId: p.post_id,
+          postName: p.post_name,
+          totalAmount: Number(p.total_amount || 0),
+          totalCash: Number(p.total_cash || 0),
+          totalNonCash: Number(p.total_non_cash || 0),
+          transactionCount: Number(p.transaction_count || 0)
+        }))
+      };
+    });
+
     res.json({
       success: true,
       metrics: {
@@ -106,6 +160,7 @@ router.get('/metrics', verifyToken, async (req, res) => {
         mainCashBalance: mainCashNum,
         bankBcaBalance: bankBcaNum,
         bankBsiBalance: bankBsiNum,
+        dailyUnitRecap,
         
         // Detailed Income Breakdown for Admin Dashboard
         cashierCash: {
@@ -142,6 +197,7 @@ router.get('/metrics', verifyToken, async (req, res) => {
       charts: {
         monthlyTrend,
         topPosts,
+        dailyUnitRecap,
         sppStatus: [
           { name: 'Lunas', value: Number(sppPaid?.count || 0) },
           { name: 'Belum Lunas', value: Number(sppUnpaid?.count || 0) }

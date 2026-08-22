@@ -19,7 +19,10 @@ import {
   Banknote,
   Calendar,
   ShieldCheck,
-  ShoppingCart
+  ShoppingCart,
+  School,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
@@ -200,6 +203,115 @@ export default function Dashboard() {
               <span>{metrics.totalTransactions || 0} Transaksi</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* REKAPITULASI PENERIMAAN HARIAN KASIR PER JENJANG & POS PEMBAYARAN */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <School className="w-5 h-5 text-emerald-600" />
+              Rekapitulasi Penerimaan Harian Kasir (Per Jenjang &amp; Pos Pembayaran)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Penerimaan kasir hari ini ({new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}) terbagi per unit KBTK &amp; SDIT
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/kasir-pos')}
+            className="self-start sm:self-auto px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>Buka Kasir POS</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {(metrics.dailyUnitRecap || [
+            { unitId: 1, unitName: 'KBTK-IT Cendekia', unitCode: 'KBTK', totalAmount: 0, totalCash: 0, totalNonCash: 0, transactionCount: 0, posts: [] },
+            { unitId: 2, unitName: 'SDIT Cendekia', unitCode: 'SDIT', totalAmount: 0, totalCash: 0, totalNonCash: 0, transactionCount: 0, posts: [] }
+          ]).map((unit) => {
+            const isKBTK = unit.unitCode === 'KBTK' || unit.unitName?.includes('KBTK');
+            return (
+              <div 
+                key={unit.unitId || unit.unitCode} 
+                className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4 hover:shadow-md transition-shadow"
+              >
+                {/* Unit Header Badge */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shadow-xs ${
+                      isKBTK ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {unit.unitCode}
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 text-base">{unit.unitName}</h3>
+                      <p className="text-[11px] text-slate-400 font-medium">Hari ini: {unit.transactionCount || 0} Transaksi Pembayaran</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Hari Ini</span>
+                    <span className={`text-lg font-black ${isKBTK ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {formatRupiah(unit.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sub-KPI: Tunai vs Non-Tunai */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Tunai (Cash)</span>
+                      <span className="text-xs font-extrabold text-emerald-700">{formatRupiah(unit.totalCash)}</span>
+                    </div>
+                    <Banknote className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Non-Tunai</span>
+                      <span className="text-xs font-extrabold text-teal-700">{formatRupiah(unit.totalNonCash)}</span>
+                    </div>
+                    <QrCode className="w-4 h-4 text-teal-500" />
+                  </div>
+                </div>
+
+                {/* Breakdown per Pos Pembayaran Table */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Rincian Per Pos Pembayaran:
+                  </span>
+                  
+                  {(!unit.posts || unit.posts.length === 0) ? (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                      Belum ada transaksi pembayaran untuk {unit.unitName} hari ini.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden text-xs">
+                      {unit.posts.map((p, pIdx) => (
+                        <div key={pIdx} className="p-3 hover:bg-slate-50/80 transition-colors flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-slate-800 block">{p.postName}</span>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                              <span>{p.transactionCount} Transaksi</span>
+                              <span>•</span>
+                              <span>Cash: {formatRupiah(p.totalCash)}</span>
+                              <span>•</span>
+                              <span>Non-Cash: {formatRupiah(p.totalNonCash)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-extrabold text-slate-900 text-sm block">{formatRupiah(p.totalAmount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
