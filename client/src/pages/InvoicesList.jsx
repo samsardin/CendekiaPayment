@@ -45,6 +45,32 @@ const AY_MONTHS = [
   { code: '2027-06', label: 'Juni 2027' }
 ];
 
+const monthNamesIndo = {
+  '01': 'Januari',
+  '02': 'Februari',
+  '03': 'Maret',
+  '04': 'April',
+  '05': 'Mei',
+  '06': 'Juni',
+  '07': 'Juli',
+  '08': 'Agustus',
+  '09': 'September',
+  '10': 'Oktober',
+  '11': 'November',
+  '12': 'Desember'
+};
+
+const formatMonthPeriodIndo = (period) => {
+  if (!period) return '';
+  const match = String(period).match(/^(\d{4})-(\d{2})$/);
+  if (match) {
+    const year = match[1];
+    const month = monthNamesIndo[match[2]] || match[2];
+    return `${month} ${year}`;
+  }
+  return period;
+};
+
 export default function InvoicesList() {
   const { user } = useAuth();
   const isAdminOrSuperAdmin = user?.role === 'superadmin' || user?.role === 'admin';
@@ -501,6 +527,32 @@ export default function InvoicesList() {
 
     const dateStamp = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 
+    const monthNamesIndo = {
+      '01': 'Januari',
+      '02': 'Februari',
+      '03': 'Maret',
+      '04': 'April',
+      '05': 'Mei',
+      '06': 'Juni',
+      '07': 'Juli',
+      '08': 'Agustus',
+      '09': 'September',
+      '10': 'Oktober',
+      '11': 'November',
+      '12': 'Desember'
+    };
+
+    const formatMonthPeriodIndo = (period) => {
+      if (!period) return '-';
+      const match = String(period).match(/^(\d{4})-(\d{2})$/);
+      if (match) {
+        const year = match[1];
+        const month = monthNamesIndo[match[2]] || match[2];
+        return `${month} ${year}`;
+      }
+      return period;
+    };
+
     const sppSem1 = sppInvoices.slice(0, 6);
     const sppSem2 = sppInvoices.slice(6, 12);
 
@@ -508,11 +560,11 @@ export default function InvoicesList() {
       if (!inv) return '<tr><td colspan="6" style="padding: 3px; border: 1px solid #cbd5e1; color: #94a3b8; text-align: center;">-</td></tr>';
       const remaining = Math.max(0, Number(inv.nominal || 0) - Number(inv.discount_amount || 0) - Number(inv.paid_amount || 0));
       const statusBg = inv.status === 'Lunas' ? '#dcfce7; color: #166534;' : remaining > 0 ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;';
-      const monthShort = inv.month_period ? inv.month_period : (inv.post_name || '-');
+      const monthFormatted = inv.month_period ? formatMonthPeriodIndo(inv.month_period) : (inv.post_name || '-');
       return `
         <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
           <td style="text-align: center; padding: 2.5px 3px; border: 1px solid #cbd5e1; font-weight: bold; width: 18px;">${idx + 1 + offset}</td>
-          <td style="padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 700;">${monthShort}</td>
+          <td style="padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 700;">${monthFormatted}</td>
           <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 600;">Rp ${Number(inv.nominal || 0).toLocaleString('id-ID')}</td>
           <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; color: #047857; font-weight: 600;">Rp ${Number(inv.paid_amount || 0).toLocaleString('id-ID')}</td>
           <td style="text-align: right; padding: 2.5px 5px; border: 1px solid #cbd5e1; font-weight: 800; color: ${remaining > 0 ? '#b91c1c' : '#047857'};">Rp ${remaining.toLocaleString('id-ID')}</td>
@@ -888,7 +940,7 @@ export default function InvoicesList() {
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="bg-emerald-50 text-emerald-800 font-semibold px-2 py-0.5 rounded border border-emerald-200">
-                          {inv.post_name} {inv.month_period ? `(${inv.month_period})` : ''}
+                          {inv.post_name} {inv.month_period ? `(${formatMonthPeriodIndo(inv.month_period)})` : ''}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-bold">
@@ -1588,7 +1640,7 @@ export default function InvoicesList() {
                                 )}
                                 <div>
                                   <span className="font-bold text-slate-800 block">
-                                    {inv.post_name} {inv.month_period ? `(${inv.month_period})` : ''}
+                                    {inv.post_name} {inv.month_period ? `(${formatMonthPeriodIndo(inv.month_period)})` : ''}
                                   </span>
                                   <span className="text-[10px] text-slate-400">Jatuh Tempo: {inv.due_date || '10 Tiap Bulan'}</span>
                                 </div>
